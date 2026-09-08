@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍱 食堂窗口评价问卷</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/survey.css">
+</head>
+<body class="survey-body">
+
+    <!-- 顶部标题栏 -->
+    <header class="survey-header">
+        <h1>🍱 食堂窗口评价问卷</h1>
+        <p class="survey-intro">
+            请对每个食堂窗口进行评价，帮助我们改进食堂质量 🙏<br>
+            <span class="survey-tip">⭐ 为必填项（至少给每个窗口打个分吧）</span>
+        </p>
+        <a href="/" class="back-to-dashboard">← 返回看板</a>
+    </header>
+
+    <!-- 问卷主内容 -->
+    <main class="survey-main">
+        <form id="survey-form">
+            <!-- JS 动态生成 8 个窗口卡片 -->
+            <div id="window-cards" class="window-cards"></div>
+
+            <!-- 提交按钮区 -->
+            <div class="survey-submit-bar">
+                <button type="button" id="reset-btn" class="btn btn-secondary">🔄 重置所有</button>
+                <button type="submit" id="submit-btn" class="btn btn-primary">📨 提交评价</button>
+            </div>
+        </form>
+    </main>
+
+    <!-- 提交成功弹窗 -->
+    <div id="success-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-icon">🎉</div>
+            <h2>感谢你的评价！</h2>
+            <p>你的反馈会帮助食堂变得更好吃 🍜</p>
+            <a href="/" class="btn btn-primary">去看板看数据</a>
+            <button type="button" id="modal-close" class="btn btn-secondary">继续评价</button>
+        </div>
+    </div>
+
+    <script src="/static/js/survey.js"></script>
+</body>
+</html>

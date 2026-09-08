@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍱 食堂窗口菜品评价看板</title>
+
+    <!-- ECharts CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <!-- echarts-wordcloud 插件 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- ============= 顶部标题栏 ============= -->
+    <header class="page-header">
+        <div class="header-content">
+            <h1>🍱 食堂窗口菜品评价看板</h1>
+            <div class="header-meta">
+                <span id="data-source-badge" class="badge badge-info">📊 {{ data_source }}</span>
+                <span class="data-date">📅 数据更新: <span id="header-date">{{ data_date }}</span></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ============= 侧边栏 ============= -->
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <h3>📁 数据管理</h3>
+
+            <!-- 数据源切换 -->
+            <div class="source-switch-wrap">
+                <label class="source-label">数据源：</label>
+                <select id="source-select" class="source-select">
+                    <option value="mock" {% if current_source == 'mock' %}selected{% endif %}>🎲 模拟数据</option>
+                    <option value="survey" {% if current_source == 'survey' %}selected{% endif %}>📝 问卷收集数据</option>
+                    <option value="upload" {% if current_source == 'upload' %}selected{% endif %}>📤 上传文件</option>
+                </select>
+            </div>
+
+            <!-- 文件上传（仅在 upload 模式下可用） -->
+            <div class="upload-area" id="upload-area">
+                <label class="upload-btn">
+                    <input type="file" id="file-upload" accept=".csv,.xlsx" hidden>
+                    📤 上传 Excel/CSV
+                </label>
+                <button id="reset-btn" class="reset-btn">🔄 切回模拟数据</button>
+            </div>
+            <div id="upload-msg" class="upload-msg"></div>
+
+            <!-- 去填问卷 -->
+            <a href="/survey" class="survey-entry">
+                ✍️ 去填评价问卷
+            </a>
+        </div>
+
+        <div class="sidebar-section">
+            <h3>🏷️ 菜系筛选</h3>
+            <div class="filter-tags" id="cuisine-tags">
+                <!-- JS 动态生成 -->
+            </div>
+        </div>
+
+        <div class="sidebar-section info-section">
+            <h3>💡 使用说明</h3>
+            <p>• 默认加载模拟数据</p>
+            <p>• 支持上传问卷星导出的 Excel/CSV</p>
+            <p>• 表格字段需包含：窗口名、菜品名、评分</p>
+            <p>• 搜索支持菜品名/窗口名/评价文字</p>
+        </div>
+    </aside>
+
+    <!-- ============= 主内容区 ============= -->
+    <main class="main-content">
+        <!-- 搜索框 -->
+        <div class="search-bar">
+            <input type="text" id="search-input" placeholder="🔍 输入关键词搜索（如：川菜、麻辣、干净）">
+            <button id="download-btn" class="download-btn">⬇️ 下载 CSV</button>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🍜</div>
+                <div class="stat-content">
+                    <div class="stat-label">总评价数</div>
+                    <div class="stat-value" id="stat-total">--</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⭐</div>
+                <div class="stat-content">
+                    <div class="stat-label">整体平均分</div>
+                    <div class="stat-value" id="stat-avg">--</div>
+                </div>
+            </div>
+            <div class="stat-card stat-better">
+                <div class="stat-icon">🏆</div>
+                <div class="stat-content">
+                    <div class="stat-label">最高分窗口</div>
+                    <div class="stat-value" id="stat-best-name">--</div>
+                    <div class="stat-sub">
+                        <span id="stat-best-score">--</span>
+                        <span id="stat-best-delta" class="delta-positive"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="stat-card stat-worse">
+                <div class="stat-icon">⚠️</div>
+                <div class="stat-content">
+                    <div class="stat-label">最低分窗口</div>
+                    <div class="stat-value" id="stat-worst-name">--</div>
+                    <div class="stat-sub">
+                        <span id="stat-worst-score">--</span>
+                        <span id="stat-worst-delta" class="delta-negative"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表区 -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3 class="chart-title">📊 各窗口平均分对比</h3>
+                <div id="chart-window-avg" class="chart-container"></div>
+            </div>
+            <div class="chart-card">
+                <h3 class="chart-title">🎯 评分分布</h3>
+                <div id="chart-score-dist" class="chart-container"></div>
+            </div>
+            <div class="chart-card">
+                <h3 class="chart-title">🔥 窗口热度排行 TOP 10</h3>
+                <div id="chart-window-rank" class="chart-container"></div>
+            </div>
+            <div class="chart-card">
+                <h3 class="chart-title">🍲 菜系类型 vs 评分</h3>
+                <div id="chart-cuisine-score" class="chart-container"></div>
+            </div>
+            <div class="chart-card chart-wide">
+                <h3 class="chart-title">💰 价格 vs 评分</h3>
+                <div id="chart-price-scatter" class="chart-container"></div>
+            </div>
+            <div class="chart-card chart-wide">
+                <h3 class="chart-title">☁️ 评价关键词词云</h3>
+                <div id="chart-wordcloud" class="chart-container chart-tall"></div>
+            </div>
+        </div>
+
+        <!-- 数据表格 -->
+        <div class="table-section">
+            <div class="table-header">
+                <h3>📋 原始评价数据</h3>
+                <span class="table-info">共 <span id="table-total">--</span> 条</span>
+            </div>
+            <div class="table-wrapper">
+                <table id="data-table">
+                    <thead>
+                        <tr>
+                            <th>窗口名</th>
+                            <th>菜品名</th>
+                            <th>菜系类型</th>
+                            <th>评分</th>
+                            <th>价格(元)</th>
+                            <th>评价文字</th>
+                            <th>日期</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- JS 动态填充 -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <button id="prev-page" class="page-btn">← 上一页</button>
+                <span class="page-info">第 <span id="current-page">1</span> / <span id="total-pages">1</span> 页</span>
+                <button id="next-page" class="page-btn">下一页 →</button>
+            </div>
+        </div>
+
+        <footer class="page-footer">
+            <p>🍱 食堂窗口菜品评价看板 · 数据可视化 Demo</p>
+        </footer>
+    </main>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
