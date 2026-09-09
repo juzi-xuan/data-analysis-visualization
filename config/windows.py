@@ -31,37 +31,44 @@ NEGATIVE_TAGS = [
 # 7 个真实食堂窗口
 WINDOWS = [
     {
-        "name": "兰州拉面",
+        "name": "兰州拉面（一食堂周边）",
+        "canteen": "一食堂",
         "cuisine": "面食",
         "image": "/static/images/兰州拉面（一食堂周边）.jpg",
     },
     {
-        "name": "北方烤饼",
+        "name": "北方烤饼（二食堂）",
+        "canteen": "二食堂",
         "cuisine": "面食",
         "image": "/static/images/北方烤饼（二食堂）.jpg",
     },
     {
-        "name": "平江特色粉面",
+        "name": "平江特色粉面（一食堂一楼）",
+        "canteen": "一食堂",
         "cuisine": "湖南菜",
         "image": "/static/images/平江特色粉面（一食堂一楼）.jpg",
     },
     {
-        "name": "朝阳洲牛肉粉面",
+        "name": "朝阳洲牛肉粉面（一食堂一楼）",
+        "canteen": "一食堂",
         "cuisine": "江西菜",
         "image": "/static/images/朝阳洲牛肉粉面（一食堂一楼）.jpg",
     },
     {
-        "name": "王喜峰麻辣烫",
+        "name": "王喜峰麻辣烫（二食堂）",
+        "canteen": "二食堂",
         "cuisine": "川菜",
         "image": "/static/images/王喜峰麻辣烫（二食堂）.jpg",
     },
     {
-        "name": "精品粮自选",
+        "name": "精品粮自选（二食堂）",
+        "canteen": "二食堂",
         "cuisine": "家常菜",
         "image": "/static/images/精品粮自选（二食堂）.jpg",
     },
     {
-        "name": "黄焖鸡",
+        "name": "黄焖鸡（二食堂）",
+        "canteen": "二食堂",
         "cuisine": "家常菜",
         "image": "/static/images/黄焖鸡（二食堂）.jpg",
     },

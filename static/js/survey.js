@@ -1,6 +1,6 @@
 /* =============================================
    食堂窗口问卷 - 交互逻辑
-   - 动态渲染 8 个窗口卡片
+   - 动态渲染窗口卡片（按食堂分类过滤）
    - 5 星评分交互（hover 预览 + click 选中）
    - 多选标签切换
    - 表单提交到 /api/survey/submit
@@ -10,6 +10,9 @@
 let WINDOWS = [];
 let POSITIVE_TAGS = [];
 let NEGATIVE_TAGS = [];
+
+// 当前选中的食堂过滤："all" | "一食堂" | "二食堂"
+let currentCanteen = "all";
 
 // 每个窗口的状态 { windowName: { score, tags[], comment } }
 let surveyState = {};
@@ -39,22 +42,40 @@ async function initSurvey() {
         bindEvents();
     } catch (err) {
         console.error("加载窗口配置失败:", err);
-        // 兜底：显示错误提示
         document.getElementById("window-cards").innerHTML =
             '<p style="text-align:center;color:#c62828;padding:40px;">❌ 加载失败，请刷新重试</p>';
     }
 }
 
-// ========== 渲染窗口卡片 ==========
+// ========== 渲染窗口卡片（按食堂过滤） ==========
+
+function getFilteredWindows() {
+    if (currentCanteen === "all") return WINDOWS;
+    return WINDOWS.filter(w => w.canteen === currentCanteen);
+}
 
 function renderWindowCards() {
     const container = document.getElementById("window-cards");
     container.innerHTML = "";
 
-    WINDOWS.forEach((window, idx) => {
+    const windows = getFilteredWindows();
+
+    if (windows.length === 0) {
+        container.innerHTML =
+            '<p style="text-align:center;color:#999;padding:60px;">这个食堂暂时还没有窗口 🥲</p>';
+        return;
+    }
+
+    windows.forEach((window, idx) => {
+        const state = surveyState[window.name];
         const card = document.createElement("div");
-        card.className = "window-card";
+        card.className = "window-card" + (state.score > 0 ? " evaluated" : "");
         card.dataset.window = window.name;
+
+        // 食堂标签（一食堂/二食堂）
+        const canteenTag = window.canteen
+            ? `<span class="window-card__canteen-tag">${window.canteen}</span>`
+            : "";
 
         card.innerHTML = `
             <!-- 图片区 -->
@@ -66,6 +87,7 @@ function renderWindowCards() {
                      onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
                 <div class="window-card__emoji-fallback" style="display:none;">🍜</div>
                 <span class="window-card__image-hint">🔍 点击放大</span>
+                ${canteenTag}
             </div>
 
             <!-- 内容区 -->
@@ -81,10 +103,10 @@ function renderWindowCards() {
                     <span class="rating-label">满意度：</span>
                     <div class="stars" data-window="${window.name}">
                         ${[1,2,3,4,5].map(i => `
-                            <span class="star" data-score="${i}">★</span>
+                            <span class="star ${i <= state.score ? 'active selected' : ''}" data-score="${i}">★</span>
                         `).join("")}
                     </div>
-                    <span class="rating-text" data-role="rating-text"></span>
+                    <span class="rating-text" data-role="rating-text">${state.score > 0 ? RATING_TEXTS[state.score - 1] : ''}</span>
                 </div>
 
                 <!-- 多选标签 -->
@@ -95,7 +117,7 @@ function renderWindowCards() {
                         <div class="tags-sub-label">👍 好的方面</div>
                         <div class="tag-options" data-type="positive">
                             ${POSITIVE_TAGS.map(t =>
-                                `<span class="tag-option" data-tag="${t}">${t}</span>`
+                                `<span class="tag-option ${state.tags.includes(t) ? 'selected' : ''}" data-tag="${t}">${t}</span>`
                             ).join("")}
                         </div>
                     </div>
@@ -104,7 +126,7 @@ function renderWindowCards() {
                         <div class="tags-sub-label">👎 需要改进</div>
                         <div class="tag-options" data-type="negative">
                             ${NEGATIVE_TAGS.map(t =>
-                                `<span class="tag-option" data-tag="${t}">${t}</span>`
+                                `<span class="tag-option ${state.tags.includes(t) ? 'selected' : ''}" data-tag="${t}">${t}</span>`
                             ).join("")}
                         </div>
                     </div>
@@ -114,7 +136,7 @@ function renderWindowCards() {
                 <div class="comment-row">
                     <label>💬 想说点什么？</label>
                     <textarea placeholder="（选填）随便写两句..."
-                              maxlength="300"></textarea>
+                              maxlength="300">${state.comment || ''}</textarea>
                 </div>
             </div>
         `;
@@ -126,9 +148,39 @@ function renderWindowCards() {
 // ========== 事件绑定 ==========
 
 function bindEvents() {
+    // 食堂分类切换 tab
+    document.querySelectorAll(".canteen-tab").forEach(tab => {
+        tab.addEventListener("click", () => {
+            document.querySelectorAll(".canteen-tab").forEach(t => t.classList.remove("active"));
+            tab.classList.add("active");
+            currentCanteen = tab.dataset.canteen;
+            renderWindowCards();
+            bindCardEvents();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+    });
+
+    bindCardEvents();
+
+    // 重置按钮
+    document.getElementById("reset-btn").addEventListener("click", resetSurvey);
+
+    // 表单提交
+    document.getElementById("survey-form").addEventListener("submit", submitSurvey);
+
+    // "继续评价"按钮：只关闭弹窗，保留已填数据
+    document.getElementById("modal-close").addEventListener("click", () => {
+        document.getElementById("success-modal").classList.add("hidden");
+    });
+}
+
+// 卡片内部事件（每次 render 后重新绑定）
+function bindCardEvents() {
     // 图片点击放大
     document.querySelectorAll(".window-card__image-wrap").forEach(wrap => {
-        wrap.addEventListener("click", () => {
+        wrap.addEventListener("click", (e) => {
+            // 点到食堂标签或按钮时不触发
+            if (e.target.closest(".window-card__canteen-tag")) return;
             const img = wrap.querySelector(".window-card__image");
             if (!img || img.style.display === "none") return;
             openImageModal(img.dataset.full, img.alt);
@@ -140,8 +192,7 @@ function bindEvents() {
         starsEl.addEventListener("mouseenter", (e) => {
             const target = e.target.closest(".star");
             if (!target) return;
-            const score = parseInt(target.dataset.score);
-            previewStars(starsEl, score);
+            previewStars(starsEl, parseInt(target.dataset.score));
         });
 
         starsEl.addEventListener("mouseleave", () => {
@@ -150,15 +201,23 @@ function bindEvents() {
             renderStars(starsEl, current);
         });
 
-        // 点击选中
+        // 点击选中 / 再次点击取消
         starsEl.addEventListener("click", (e) => {
             const target = e.target.closest(".star");
             if (!target) return;
             const score = parseInt(target.dataset.score);
             const windowName = starsEl.dataset.window;
-            surveyState[windowName].score = score;
-            renderStars(starsEl, score);
-            markCardEvaluated(starsEl);
+            const currentScore = surveyState[windowName].score;
+            // 点击同一个分数 → 取消（设为 0），否则 → 设为该分数
+            const newScore = (currentScore === score) ? 0 : score;
+            surveyState[windowName].score = newScore;
+            renderStars(starsEl, newScore);
+            const card = starsEl.closest(".window-card");
+            if (newScore > 0) {
+                card.classList.add("evaluated");
+            } else {
+                card.classList.remove("evaluated");
+            }
         });
     });
 
@@ -183,23 +242,11 @@ function bindEvents() {
 
     // 文本域输入
     document.querySelectorAll(".comment-row textarea").forEach(ta => {
-        ta.addEventListener("input", (e) => {
+        ta.addEventListener("input", () => {
             const card = ta.closest(".window-card");
             const windowName = card.dataset.window;
             surveyState[windowName].comment = ta.value;
         });
-    });
-
-    // 重置按钮
-    document.getElementById("reset-btn").addEventListener("click", resetSurvey);
-
-    // 表单提交
-    document.getElementById("survey-form").addEventListener("submit", submitSurvey);
-
-    // 弹窗关闭
-    document.getElementById("modal-close").addEventListener("click", () => {
-        document.getElementById("success-modal").classList.add("hidden");
-        resetSurvey();
     });
 }
 
@@ -207,48 +254,30 @@ function bindEvents() {
 
 function previewStars(starsEl, score) {
     starsEl.querySelectorAll(".star").forEach((star, i) => {
-        if (i < score) {
-            star.classList.add("active");
-        } else {
-            star.classList.remove("active");
-        }
+        star.classList.toggle("active", i < score);
     });
 }
 
 function renderStars(starsEl, score) {
     starsEl.querySelectorAll(".star").forEach((star, i) => {
-        if (i < score) {
-            star.classList.add("active", "selected");
-        } else {
-            star.classList.remove("active", "selected");
-        }
+        const isActive = i < score;
+        star.classList.toggle("active", isActive);
+        star.classList.toggle("selected", isActive);
     });
 
-    // 更新文字提示
     const card = starsEl.closest(".window-card");
     const textEl = card.querySelector('[data-role="rating-text"]');
-    if (score > 0) {
-        textEl.textContent = RATING_TEXTS[score - 1];
-    } else {
-        textEl.textContent = "";
-    }
-}
-
-function markCardEvaluated(starsEl) {
-    const card = starsEl.closest(".window-card");
-    card.classList.add("evaluated");
+    textEl.textContent = score > 0 ? RATING_TEXTS[score - 1] : "";
 }
 
 // ========== 重置 ==========
 
 function resetSurvey() {
-    // 重置状态
     WINDOWS.forEach(w => {
         surveyState[w.name] = { score: 0, tags: [], comment: "" };
     });
-    // 重新渲染
     renderWindowCards();
-    bindEvents();
+    bindCardEvents();
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -257,20 +286,24 @@ function resetSurvey() {
 async function submitSurvey(e) {
     e.preventDefault();
 
-    // 验证：至少评了一个窗口
-    const evaluated = Object.values(surveyState).filter(s => s.score > 0);
+    // 收集所有被评价的窗口（score > 0）
+    const evaluated = [];
+    Object.entries(surveyState).forEach(([name, state]) => {
+        if (state.score > 0) {
+            evaluated.push({
+                window_name: name,
+                satisfaction: state.score,
+                tags: state.tags,
+                comment: state.comment || "",
+            });
+        }
+    });
+
+    // 没有评价任何窗口 → 提示而不是报错
     if (evaluated.length === 0) {
-        alert("至少给一个窗口打个分吧 ⭐");
+        alert("你还没评价任何窗口哦，吃过哪个就给它打个分吧 😋\n（不想评价也没关系，直接关掉页面就行～）");
         return;
     }
-
-    // 只提交有评分的窗口
-    const payload = evaluated.map(s => ({
-        window_name: Object.keys(surveyState).find(k => surveyState[k] === s),
-        satisfaction: s.score,
-        tags: s.tags,
-        comment: s.comment || "",
-    }));
 
     const btn = document.getElementById("submit-btn");
     btn.disabled = true;
@@ -280,13 +313,12 @@ async function submitSurvey(e) {
         const resp = await fetch("/api/survey/submit", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ responses: payload }),
+            body: JSON.stringify({ responses: evaluated }),
         });
 
         const data = await resp.json();
 
         if (data.ok) {
-            // 显示成功弹窗
             document.getElementById("success-modal").classList.remove("hidden");
         } else {
             alert("提交失败：" + (data.msg || "请稍后重试"));
@@ -315,14 +347,12 @@ function ensureImageModal() {
     `;
     document.body.appendChild(imgModalEl);
 
-    // 点击空白或关闭按钮都能关
     imgModalEl.addEventListener("click", (e) => {
         if (e.target === imgModalEl || e.target.classList.contains("img-modal__close")) {
             closeImageModal();
         }
     });
 
-    // ESC 键关闭
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && !imgModalEl.classList.contains("hidden")) {
             closeImageModal();
@@ -337,7 +367,7 @@ function openImageModal(src, caption) {
     img.src = src;
     cap.textContent = caption || "";
     imgModalEl.classList.remove("hidden");
-    document.body.style.overflow = "hidden";  // 防止背景滚动
+    document.body.style.overflow = "hidden";
 }
 
 function closeImageModal() {

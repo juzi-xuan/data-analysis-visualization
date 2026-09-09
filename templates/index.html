@@ -16,6 +16,8 @@
     <!-- ============= 顶部标题栏 ============= -->
     <header class="page-header">
         <div class="header-content">
+            <!-- 移动端汉堡按钮 -->
+            <button class="menu-toggle" id="menu-toggle" aria-label="打开菜单">☰</button>
             <h1>🍱 食堂窗口菜品评价看板</h1>
             <div class="header-meta">
                 <span id="data-source-badge" class="badge badge-info">📊 {{ data_source }}</span>
@@ -23,6 +25,9 @@
             </div>
         </div>
     </header>
+
+    <!-- 侧边栏遮罩（移动端） -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
     <!-- ============= 侧边栏 ============= -->
     <aside class="sidebar">
@@ -76,6 +81,8 @@
         <!-- 搜索框 -->
         <div class="search-bar">
             <input type="text" id="search-input" placeholder="🔍 输入关键词搜索（如：川菜、麻辣、干净）">
+            <!-- 移动端快捷问卷入口（桌面端在侧边栏里已有） -->
+            <a href="/survey" class="survey-entry-mobile">✍️ 去填问卷</a>
             <button id="download-btn" class="download-btn">⬇️ 下载 CSV</button>
         </div>
 

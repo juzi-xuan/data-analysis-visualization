@@ -15,6 +15,18 @@ const state = {
 // ECharts 实例缓存
 const charts = {};
 
+// 移动端关闭侧边栏抽屉的辅助函数
+function closeSidebarIfMobile() {
+    if (window.innerWidth <= 768) {
+        const sidebar = document.querySelector(".sidebar");
+        const backdrop = document.getElementById("sidebar-backdrop");
+        const menuToggle = document.getElementById("menu-toggle");
+        if (sidebar) sidebar.classList.remove("open");
+        if (backdrop) backdrop.classList.remove("show");
+        if (menuToggle) menuToggle.textContent = "☰";
+    }
+}
+
 // ECharts 统一配色（橙黄暖色调）
 const COLORS = ["#FF6B35", "#FFB347", "#FFD700", "#E85D75", "#6AB04C", "#4A90D9", "#9B59B6", "#1ABC9C"];
 
@@ -55,6 +67,12 @@ function initCharts() {
     window.addEventListener("resize", () => {
         Object.values(charts).forEach(c => c.resize());
     });
+    // 移动端横竖屏切换时也重绘
+    window.addEventListener("orientationchange", () => {
+        setTimeout(() => {
+            Object.values(charts).forEach(c => c.resize());
+        }, 300);
+    });
 }
 
 
@@ -64,6 +82,7 @@ function bindEvents() {
     const sourceSelect = document.getElementById("source-select");
     if (sourceSelect) {
         sourceSelect.addEventListener("change", async (e) => {
+            closeSidebarIfMobile();
             const target = e.target.value;
             await switchSource(target);
         });
@@ -120,6 +139,7 @@ function bindEvents() {
 
     // 重置按钮
     document.getElementById("reset-btn").addEventListener("click", async () => {
+        closeSidebarIfMobile();
         const res = await fetch("/api/reset");
         await res.json();
         document.getElementById("data-source-badge").textContent = "📊 模拟数据";
@@ -146,6 +166,46 @@ function bindEvents() {
     document.getElementById("next-page").addEventListener("click", () => {
         state.page++;
         loadTable();
+    });
+
+    // ============ 移动端侧边栏抽屉 ============
+    const menuToggle = document.getElementById("menu-toggle");
+    const sidebar = document.querySelector(".sidebar");
+    const backdrop = document.getElementById("sidebar-backdrop");
+
+    function openSidebar() {
+        sidebar.classList.add("open");
+        backdrop.classList.add("show");
+        menuToggle.textContent = "✕";
+    }
+    function closeSidebar() {
+        sidebar.classList.remove("open");
+        backdrop.classList.remove("show");
+        menuToggle.textContent = "☰";
+    }
+    function toggleSidebar() {
+        if (sidebar.classList.contains("open")) {
+            closeSidebar();
+        } else {
+            openSidebar();
+        }
+    }
+
+    if (menuToggle) menuToggle.addEventListener("click", toggleSidebar);
+    if (backdrop) backdrop.addEventListener("click", closeSidebar);
+
+    // 窗口放大到桌面尺寸时自动关闭抽屉
+    window.addEventListener("resize", () => {
+        if (window.innerWidth > 768) {
+            closeSidebar();
+        }
+    });
+
+    // ESC 键关闭抽屉
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && sidebar.classList.contains("open")) {
+            closeSidebar();
+        }
     });
 }
 
@@ -198,6 +258,7 @@ async function loadCuisines() {
         tag.className = "filter-tag" + (c === state.cuisine ? " active" : "");
         tag.textContent = c;
         tag.onclick = async () => {
+            closeSidebarIfMobile();
             state.cuisine = c;
             state.page = 1;
             // 更新标签样式

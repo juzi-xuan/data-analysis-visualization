@@ -68,6 +68,45 @@
     z-index: 10;
 }
 
+/* 食堂分类切换 tab */
+.canteen-tabs {
+    max-width: 1100px;
+    margin: -12px auto 24px;
+    padding: 0 24px;
+    display: flex;
+    gap: 10px;
+    position: relative;
+    z-index: 11;
+}
+
+.canteen-tab {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.85);
+    color: #888;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.25s;
+    font-family: inherit;
+    backdrop-filter: blur(4px);
+}
+
+.canteen-tab:hover {
+    background: #fff;
+    color: #333;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(255, 107, 53, 0.2);
+}
+
+.canteen-tab.active {
+    background: linear-gradient(135deg, #FF6B35, #FFB347);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(255, 107, 53, 0.4);
+}
+
 .window-cards {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -100,6 +139,22 @@
     overflow: hidden;
     background: #f8f5f0;  /* 浅米色背景，contain 留白时不会难看 */
     cursor: zoom-in;     /* 鼠标变成放大镜，提示可点击 */
+}
+
+/* 图片上的食堂小标签 */
+.window-card__canteen-tag {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 10px;
+    z-index: 2;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
 }
 
 .window-card__image {
