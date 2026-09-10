@@ -1,8 +1,9 @@
 /* =============================================
-   食堂窗口问卷 - 交互逻辑
+   食堂窗口问卷 - 交互逻辑（含菜品选择器）
    - 动态渲染窗口卡片（按食堂分类过滤）
    - 5 星评分交互（hover 预览 + click 选中）
    - 多选标签切换
+   - 菜品选择器（可搜索多选）+ 动态描述输入框
    - 表单提交到 /api/survey/submit
    ============================================= */
 
@@ -10,11 +11,14 @@
 let WINDOWS = [];
 let POSITIVE_TAGS = [];
 let NEGATIVE_TAGS = [];
+let DISH_TAGS_POSITIVE = [];
+let DISH_TAGS_NEGATIVE = [];
 
 // 当前选中的食堂过滤："all" | "一食堂" | "二食堂"
 let currentCanteen = "all";
 
-// 每个窗口的状态 { windowName: { score, tags[], comment } }
+// 每个窗口的状态
+// { score, tags[], comment, dishEvaluations: [{name, price, description}] }
 let surveyState = {};
 
 const RATING_TEXTS = ["一般", "还行", "不错", "挺好吃", "超好吃"];
@@ -28,6 +32,8 @@ async function initSurvey() {
         WINDOWS = data.windows;
         POSITIVE_TAGS = data.positive_tags;
         NEGATIVE_TAGS = data.negative_tags;
+        DISH_TAGS_POSITIVE = data.dish_tags_positive || [];
+        DISH_TAGS_NEGATIVE = data.dish_tags_negative || [];
 
         // 初始化状态
         WINDOWS.forEach(w => {
@@ -35,6 +41,7 @@ async function initSurvey() {
                 score: 0,
                 tags: [],
                 comment: "",
+                dishEvaluations: [],
             };
         });
 
@@ -47,7 +54,7 @@ async function initSurvey() {
     }
 }
 
-// ========== 渲染窗口卡片（按食堂过滤） ==========
+// ========== 渲染窗口卡片 ==========
 
 function getFilteredWindows() {
     if (currentCanteen === "all") return WINDOWS;
@@ -76,6 +83,10 @@ function renderWindowCards() {
         const canteenTag = window.canteen
             ? `<span class="window-card__canteen-tag">${window.canteen}</span>`
             : "";
+
+        // 菜品选择器区域（只有配了 dishes 才渲染）
+        const hasDishes = window.dishes && window.dishes.length > 0;
+        const dishSelectorHTML = hasDishes ? renderDishSelector(window, state) : "";
 
         card.innerHTML = `
             <!-- 图片区 -->
@@ -108,6 +119,9 @@ function renderWindowCards() {
                     </div>
                     <span class="rating-text" data-role="rating-text">${state.score > 0 ? RATING_TEXTS[state.score - 1] : ''}</span>
                 </div>
+
+                <!-- 菜品选择器（可选区域） -->
+                ${dishSelectorHTML}
 
                 <!-- 多选标签 -->
                 <div class="tags-section">
@@ -145,6 +159,92 @@ function renderWindowCards() {
     });
 }
 
+// 渲染菜品选择器 HTML（折叠状态初始关闭）
+function renderDishSelector(window, state) {
+    const dishCount = window.dishes.length;
+    const selectedCount = state.dishEvaluations.length;
+
+    return `
+        <div class="dish-selector" data-role="dish-selector">
+            <button type="button" class="dish-toggle">
+                <span>🍽️ 选择餐品</span>
+                <span class="dish-toggle__count" data-role="dish-toggle-count">
+                    ${selectedCount > 0 ? `${selectedCount}/${dishCount} 已选` : `${dishCount} 道菜可评`}
+                </span>
+                <span class="dish-toggle__arrow">▼</span>
+            </button>
+
+            <div class="dish-panel hidden" data-role="dish-panel">
+                <!-- 搜索框 -->
+                <div class="dish-search-wrap">
+                    <span class="dish-search__icon">🔍</span>
+                    <input type="text" class="dish-search" placeholder="搜索菜品..." data-role="dish-search">
+                </div>
+
+                <!-- 菜品列表（可滚动） -->
+                <div class="dish-list" data-role="dish-list">
+                    ${window.dishes.map(d => {
+                        const selected = state.dishEvaluations.some(e => e.name === d.name);
+                        return `
+                            <label class="dish-item ${selected ? 'selected' : ''}" data-dish="${escapeHTML(d.name)}">
+                                <input type="checkbox" ${selected ? 'checked' : ''}>
+                                <span class="dish-item__name">${escapeHTML(d.name)}</span>
+                                <span class="dish-item__price">¥${d.price}</span>
+                            </label>
+                        `;
+                    }).join("")}
+                </div>
+
+                ${dishCount > 50 ? `<div class="dish-hint">共 ${dishCount} 道菜品，可搜索过滤</div>` : ""}
+            </div>
+
+            <!-- 已选菜品的动态描述输入框 -->
+            <div class="dish-inputs" data-role="dish-inputs">
+                ${state.dishEvaluations.map(de => {
+                    const price = (window.dishes.find(d => d.name === de.name) || {}).price;
+                    return renderDishInputRow(de, price);
+                }).join("")}
+            </div>
+        </div>
+    `;
+}
+
+function escapeHTML(str) {
+    if (!str) return "";
+    return String(str).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
+// 渲染单个菜品的评价输入行（带快速标签）
+function renderDishInputRow(de, price) {
+    const tags = de.tags || [];
+    return `
+        <div class="dish-input-row" data-dish="${escapeHTML(de.name)}">
+            <div class="dish-input-row__label">
+                <span>📝 ${escapeHTML(de.name)}${price ? ` (¥${price})` : ''} 的评价：</span>
+                <button type="button" class="dish-input-row__remove" title="取消此菜品">✕</button>
+            </div>
+
+            <!-- 快速标签区 -->
+            <div class="dish-tags-row">
+                <div class="dish-tags-group">
+                    ${DISH_TAGS_POSITIVE.map(t =>
+                        `<span class="dish-tag dish-tag--pos ${tags.includes(t) ? 'selected' : ''}" data-dish-tag="${t}">${t}</span>`
+                    ).join("")}
+                </div>
+                <div class="dish-tags-group">
+                    ${DISH_TAGS_NEGATIVE.map(t =>
+                        `<span class="dish-tag dish-tag--neg ${tags.includes(t) ? 'selected' : ''}" data-dish-tag="${t}">${t}</span>`
+                    ).join("")}
+                </div>
+            </div>
+
+            <textarea placeholder="（选填）这道菜怎么样？也可以点上面的标签～" maxlength="300">${escapeHTML(de.description || '')}</textarea>
+        </div>
+    `;
+}
+
 // ========== 事件绑定 ==========
 
 function bindEvents() {
@@ -179,7 +279,6 @@ function bindCardEvents() {
     // 图片点击放大
     document.querySelectorAll(".window-card__image-wrap").forEach(wrap => {
         wrap.addEventListener("click", (e) => {
-            // 点到食堂标签或按钮时不触发
             if (e.target.closest(".window-card__canteen-tag")) return;
             const img = wrap.querySelector(".window-card__image");
             if (!img || img.style.display === "none") return;
@@ -201,14 +300,12 @@ function bindCardEvents() {
             renderStars(starsEl, current);
         });
 
-        // 点击选中 / 再次点击取消
         starsEl.addEventListener("click", (e) => {
             const target = e.target.closest(".star");
             if (!target) return;
             const score = parseInt(target.dataset.score);
             const windowName = starsEl.dataset.window;
             const currentScore = surveyState[windowName].score;
-            // 点击同一个分数 → 取消（设为 0），否则 → 设为该分数
             const newScore = (currentScore === score) ? 0 : score;
             surveyState[windowName].score = newScore;
             renderStars(starsEl, newScore);
@@ -227,7 +324,6 @@ function bindCardEvents() {
             const card = tagEl.closest(".window-card");
             const windowName = card.dataset.window;
             const tag = tagEl.dataset.tag;
-
             const tags = surveyState[windowName].tags;
             const idx = tags.indexOf(tag);
             if (idx > -1) {
@@ -240,7 +336,7 @@ function bindCardEvents() {
         });
     });
 
-    // 文本域输入
+    // 文本域输入（窗口级 comment）
     document.querySelectorAll(".comment-row textarea").forEach(ta => {
         ta.addEventListener("input", () => {
             const card = ta.closest(".window-card");
@@ -248,6 +344,185 @@ function bindCardEvents() {
             surveyState[windowName].comment = ta.value;
         });
     });
+
+    // ========== 菜品选择器事件 ==========
+
+    // 折叠按钮
+    document.querySelectorAll(".dish-toggle").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const panel = btn.parentElement.querySelector('[data-role="dish-panel"]');
+            panel.classList.toggle("hidden");
+            const arrow = btn.querySelector(".dish-toggle__arrow");
+            if (panel.classList.contains("hidden")) {
+                arrow.textContent = "▼";
+            } else {
+                arrow.textContent = "▲";
+            }
+        });
+    });
+
+    // 搜索框输入 → 过滤菜品列表
+    document.querySelectorAll(".dish-search").forEach(input => {
+        input.addEventListener("input", () => {
+            const keyword = input.value.trim().toLowerCase();
+            const list = input.closest(".dish-panel").querySelector('[data-role="dish-list"]');
+            list.querySelectorAll(".dish-item").forEach(item => {
+                const name = item.dataset.dish.toLowerCase();
+                if (!keyword || name.includes(keyword)) {
+                    item.style.display = "";
+                } else {
+                    item.style.display = "none";
+                }
+            });
+        });
+    });
+
+    // 菜品 checkbox 切换
+    document.querySelectorAll(".dish-item input[type='checkbox']").forEach(cb => {
+        cb.addEventListener("change", () => {
+            const item = cb.closest(".dish-item");
+            const card = cb.closest(".window-card");
+            const windowName = card.dataset.window;
+            const dishName = item.dataset.dish;
+            const dishes = WINDOWS.find(w => w.name === windowName).dishes;
+            const dishInfo = dishes.find(d => d.name === dishName);
+            const state = surveyState[windowName];
+
+            if (cb.checked) {
+                // 加入选中列表
+                if (!state.dishEvaluations.some(e => e.name === dishName)) {
+                    state.dishEvaluations.push({
+                        name: dishName,
+                        price: dishInfo ? dishInfo.price : 0,
+                        description: "",
+                        tags: [],
+                    });
+                }
+                item.classList.add("selected");
+            } else {
+                // 移除
+                state.dishEvaluations = state.dishEvaluations.filter(e => e.name !== dishName);
+                item.classList.remove("selected");
+            }
+
+            updateDishInputsAndCount(card, windowName);
+        });
+    });
+
+    // 已选菜品描述 textarea 输入（用事件委托，因为是动态生成的）
+    // 放在下面的 bindCardEvents 末尾统一处理
+
+    // 取消已选菜品的 ✕ 按钮
+    document.querySelectorAll(".dish-input-row__remove").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const row = btn.closest(".dish-input-row");
+            const dishName = row.dataset.dish;
+            const card = row.closest(".window-card");
+            const windowName = card.dataset.window;
+            const state = surveyState[windowName];
+
+            // 从 state 里移除
+            state.dishEvaluations = state.dishEvaluations.filter(e => e.name !== dishName);
+
+            // 取消对应的 checkbox
+            const checkbox = card.querySelector(`.dish-item[data-dish="${CSS.escape(dishName)}"] input[type='checkbox']`);
+            if (checkbox) {
+                checkbox.checked = false;
+                checkbox.closest(".dish-item").classList.remove("selected");
+            }
+
+            // 更新 UI
+            updateDishInputsAndCount(card, windowName);
+        });
+    });
+
+    // 动态 textarea input 事件（事件委托）
+    document.querySelectorAll(".dish-input-row textarea").forEach(ta => {
+        ta.addEventListener("input", () => {
+            const row = ta.closest(".dish-input-row");
+            const dishName = row.dataset.dish;
+            const card = ta.closest(".window-card");
+            const windowName = card.dataset.window;
+            const state = surveyState[windowName];
+            const evalItem = state.dishEvaluations.find(e => e.name === dishName);
+            if (evalItem) {
+                evalItem.description = ta.value;
+            }
+        });
+    });
+}
+
+// 更新已选菜品描述输入框区域和计数
+function updateDishInputsAndCount(card, windowName) {
+    const state = surveyState[windowName];
+    const window = WINDOWS.find(w => w.name === windowName);
+    const selector = card.querySelector('[data-role="dish-selector"]');
+    if (!selector) return;
+
+    // 更新计数
+    const countEl = selector.querySelector('[data-role="dish-toggle-count"]');
+    const totalDishes = window.dishes ? window.dishes.length : 0;
+    const selectedCount = state.dishEvaluations.length;
+    if (countEl) {
+        countEl.textContent = selectedCount > 0
+            ? `${selectedCount}/${totalDishes} 已选`
+            : `${totalDishes} 道菜可评`;
+    }
+
+    // 重新渲染动态输入框（简单粗暴但可靠）
+    const inputsContainer = selector.querySelector('[data-role="dish-inputs"]');
+    if (inputsContainer) {
+        inputsContainer.innerHTML = state.dishEvaluations.map(de => {
+            const price = (window.dishes.find(d => d.name === de.name) || {}).price;
+            return renderDishInputRow(de, price);
+        }).join("");
+
+        // 给新生成的 textarea、remove 按钮、标签 重新绑事件
+        inputsContainer.querySelectorAll("textarea").forEach(ta => {
+            ta.addEventListener("input", () => {
+                const row = ta.closest(".dish-input-row");
+                const dishName = row.dataset.dish;
+                const evalItem = state.dishEvaluations.find(e => e.name === dishName);
+                if (evalItem) evalItem.description = ta.value;
+            });
+        });
+
+        inputsContainer.querySelectorAll(".dish-input-row__remove").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const row = btn.closest(".dish-input-row");
+                const dishName = row.dataset.dish;
+                state.dishEvaluations = state.dishEvaluations.filter(e => e.name !== dishName);
+
+                const checkbox = card.querySelector(`.dish-item[data-dish="${CSS.escape(dishName)}"] input[type='checkbox']`);
+                if (checkbox) {
+                    checkbox.checked = false;
+                    checkbox.closest(".dish-item").classList.remove("selected");
+                }
+
+                updateDishInputsAndCount(card, windowName);
+            });
+        });
+
+        // 菜品标签点击事件
+        inputsContainer.querySelectorAll(".dish-tag").forEach(tagEl => {
+            tagEl.addEventListener("click", () => {
+                const row = tagEl.closest(".dish-input-row");
+                const dishName = row.dataset.dish;
+                const evalItem = state.dishEvaluations.find(e => e.name === dishName);
+                if (!evalItem) return;
+
+                const tag = tagEl.dataset.dishTag;
+                const idx = evalItem.tags.indexOf(tag);
+                if (idx > -1) {
+                    evalItem.tags.splice(idx, 1);
+                    tagEl.classList.remove("selected");
+                } else {
+                    evalItem.tags.push(tag);
+                    tagEl.classList.add("selected");
+                }
+            });
+        });
+    }
 }
 
 // ========== 辅助函数 ==========
@@ -274,7 +549,12 @@ function renderStars(starsEl, score) {
 
 function resetSurvey() {
     WINDOWS.forEach(w => {
-        surveyState[w.name] = { score: 0, tags: [], comment: "" };
+        surveyState[w.name] = {
+            score: 0,
+            tags: [],
+            comment: "",
+            dishEvaluations: [],
+        };
     });
     renderWindowCards();
     bindCardEvents();
@@ -295,6 +575,7 @@ async function submitSurvey(e) {
                 satisfaction: state.score,
                 tags: state.tags,
                 comment: state.comment || "",
+                dish_evaluations: state.dishEvaluations || [],
             });
         }
     });

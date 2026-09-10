@@ -9,6 +9,7 @@
 import io
 import json
 import os
+import re
 import sqlite3
 import pandas as pd
 from datetime import datetime
@@ -17,16 +18,92 @@ from utils.mock_data import generate_canteen_data
 from config.windows import WINDOW_CUISINE_MAP
 
 
+# 项目根目录
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 # SQLite 数据库路径（项目根目录下 data/ 文件夹）
-_DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "data",
-    "survey.db",
+_DB_PATH = os.path.join(_PROJECT_ROOT, "data", "survey.db")
+
+# 菜品配置 CSV 路径
+_DISHES_CSV_PATH = os.path.join(
+    _PROJECT_ROOT, "static", "form", "食堂窗口菜单价格表.csv"
 )
 
 
+# ======================== 菜品数据加载 ========================
+
+def load_dishes_from_csv(csv_path: str) -> dict:
+    """
+    读取 CSV，返回 {窗口简称: [{"name": 菜品名, "price": float}, ...]}
+
+    处理：ffill 窗口名 / 地点、价格去掉"元"转 float
+    编码：先试 utf-8-sig，失败再试 gbk
+    读取异常时返回空 dict（不会 crash）
+    """
+    try:
+        # 尝试两种常见编码
+        try:
+            df = pd.read_csv(csv_path, encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            df = pd.read_csv(csv_path, encoding="gbk")
+
+        # ffill 窗口名和地点（CSV 里窗口名只在第一行写一次，后续行是 NaN）
+        df["窗口名"] = df["窗口名"].ffill()
+
+        dishes_by_window = {}
+        for _, row in df.iterrows():
+            window_short = str(row["窗口名"]).strip()
+            dish_name = str(row["餐品"]).strip()
+            price_raw = str(row["价格"]).strip()
+
+            # 用正则提取价格里的第一个数字（兼容 "3.5元"/"3元"/"¥3.0"/"￥3" 等）
+            nums = re.findall(r"[\d.]+", price_raw)
+            if nums:
+                try:
+                    price = float(nums[0])
+                except ValueError:
+                    price = 0.0
+            else:
+                price = 0.0
+
+            if window_short not in dishes_by_window:
+                dishes_by_window[window_short] = []
+            dishes_by_window[window_short].append({"name": dish_name, "price": price})
+
+        return dishes_by_window
+    except Exception as e:
+        print(f"[WARN] 读取菜品 CSV 失败: {e}，窗口将保持无菜品选择器")
+        return {}
+
+
+def enrich_windows_with_dishes(windows: list, dishes_csv_path: str = None) -> list:
+    """
+    把 CSV 里的菜品合并到窗口列表里。
+    通过 "CSV简称 in config全称" 做包含匹配。
+    匹配不上的窗口不加 dishes 字段（保持老样子）。
+
+    这是纯函数：返回新的 list，不修改原对象（但里面的 dict 会被加 dishes key）
+    """
+    if dishes_csv_path is None:
+        dishes_csv_path = _DISHES_CSV_PATH
+
+    dishes_by_short = load_dishes_from_csv(dishes_csv_path)
+    if not dishes_by_short:
+        return list(windows)  # 没数据就原样返回
+
+    # 给每个匹配上的 window 加 dishes
+    for window in windows:
+        window_name = window["name"]
+        for short_name, dishes in dishes_by_short.items():
+            if short_name in window_name:
+                window["dishes"] = dishes
+                break  # 匹配上就停，避免多个简称都包含的情况（实际上不会有）
+
+    return list(windows)
+
+
 def ensure_survey_db():
-    """确保 SQLite 数据库和表存在"""
+    """确保 SQLite 数据库和表存在，自动迁移 dish_evaluations 列"""
     os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
     conn = sqlite3.connect(_DB_PATH)
     conn.execute("""
@@ -37,9 +114,17 @@ def ensure_survey_db():
             tags TEXT,
             comment TEXT,
             submit_date TEXT NOT NULL,
-            submitter_id TEXT
+            submitter_id TEXT,
+            dish_evaluations TEXT
         )
     """)
+
+    # 迁移：如果老表没有 dish_evaluations 列，就加上
+    cursor = conn.execute("PRAGMA table_info(survey_responses)")
+    existing_cols = [row[1] for row in cursor.fetchall()]
+    if "dish_evaluations" not in existing_cols:
+        conn.execute("ALTER TABLE survey_responses ADD COLUMN dish_evaluations TEXT")
+
     conn.commit()
     conn.close()
 
@@ -49,7 +134,8 @@ def save_survey_responses(responses: list, submitter_id: str = None) -> int:
     保存一批问卷记录到 SQLite
 
     Args:
-        responses: [{"window_name": str, "satisfaction": int, "tags": [], "comment": str}]
+        responses: [{"window_name": str, "satisfaction": int, "tags": [], "comment": str,
+                     "dish_evaluations": [{"name": str, "price": float, "description": str}]}]
         submitter_id: 可选的匿名用户标识
 
     Returns:
@@ -61,13 +147,15 @@ def save_survey_responses(responses: list, submitter_id: str = None) -> int:
     try:
         for r in responses:
             conn.execute(
-                "INSERT INTO survey_responses (window_name, satisfaction, tags, comment, submit_date, submitter_id) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO survey_responses "
+                "(window_name, satisfaction, tags, comment, dish_evaluations, submit_date, submitter_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     r["window_name"],
                     int(r["satisfaction"]),
                     json.dumps(r.get("tags", []), ensure_ascii=False),
                     r.get("comment", ""),
+                    json.dumps(r.get("dish_evaluations", []), ensure_ascii=False),
                     now,
                     submitter_id,
                 ),
@@ -82,56 +170,90 @@ def load_survey_data() -> pd.DataFrame:
     """
     从 SQLite 读取问卷数据，转换成看板需要的 DataFrame 格式
 
-    问卷字段 → 看板字段映射：
-        window_name → 窗口名
-        satisfaction → 评分 (float)
-        菜品名 → "窗口综合"
-        菜系类型 → 从 WINDOW_CUISINE_MAP 查出
-        价格 → ""
-        评价文字 → tags 拼接 + comment
-        日期 → submit_date 转 YYYY-MM-DD
+    核心逻辑变更：
+        - dish_evaluations 有内容 → 每个菜品展开成独立行（菜品名、价格、description 都用上）
+        - dish_evaluations 为空/NULL → fallback 成 1 行 "窗口综合"，价格空
+        - 窗口级的评分、tags 共享给每个展开的菜品行
     """
     ensure_survey_db()
     conn = sqlite3.connect(_DB_PATH)
     try:
         df = pd.read_sql_query(
-            "SELECT window_name, satisfaction, tags, comment, submit_date FROM survey_responses",
+            "SELECT window_name, satisfaction, tags, comment, dish_evaluations, submit_date FROM survey_responses",
             conn,
         )
     finally:
         conn.close()
 
     if df.empty:
-        # 没有问卷数据就返回空 DataFrame（看板会走空状态）
         return pd.DataFrame(
             columns=["窗口名", "菜品名", "菜系类型", "评分", "价格", "评价文字", "日期"]
         )
 
-    # 转换字段
     records = []
     for _, row in df.iterrows():
-        # tags：JSON 字符串 → list → 拼接
+        window_name = row["window_name"]
+        score = float(row["satisfaction"])
+        date_str = row["submit_date"][:10]  # YYYY-MM-DD
+        cuisine = WINDOW_CUISINE_MAP.get(window_name, "")
+
+        # tags JSON → list
         try:
             tag_list = json.loads(row["tags"]) if row["tags"] else []
         except (json.JSONDecodeError, TypeError):
             tag_list = []
 
-        parts = []
-        if tag_list:
-            parts.append("、".join(tag_list))
-        if row["comment"]:
-            parts.append(row["comment"])
+        # dish_evaluations JSON → list
+        try:
+            dish_evals = json.loads(row["dish_evaluations"]) if row["dish_evaluations"] else []
+        except (json.JSONDecodeError, TypeError):
+            dish_evals = []
 
-        window_name = row["window_name"]
-        records.append({
-            "窗口名": window_name,
-            "菜品名": "窗口综合",
-            "菜系类型": WINDOW_CUISINE_MAP.get(window_name, ""),
-            "评分": float(row["satisfaction"]),
-            "价格": "",
-            "评价文字": " | ".join(parts) if parts else "",
-            "日期": row["submit_date"][:10],  # 只取 YYYY-MM-DD
-        })
+        # 基础评价文字：tags + 窗口级 comment
+        base_parts = []
+        if tag_list:
+            base_parts.append("、".join(tag_list))
+        if row["comment"]:
+            base_parts.append(row["comment"])
+
+        if dish_evals:
+            # 有菜品评价 → 每个菜品展开一行
+            for dish in dish_evals:
+                dish_name = dish.get("name", "")
+                try:
+                    price = float(dish.get("price", 0))
+                except (ValueError, TypeError):
+                    price = 0.0
+                dish_desc = dish.get("description", "")
+                dish_tags = dish.get("tags", [])
+
+                # 评价文字：基础部分 + 菜品级标签 + 菜品描述
+                text_parts = list(base_parts)  # copy
+                if dish_tags:
+                    text_parts.append("、".join(dish_tags))
+                if dish_desc:
+                    text_parts.append(dish_desc)
+
+                records.append({
+                    "窗口名": window_name,
+                    "菜品名": dish_name or "窗口综合",
+                    "菜系类型": cuisine,
+                    "评分": score,
+                    "价格": price if price > 0 else "",
+                    "评价文字": " | ".join(text_parts) if text_parts else "",
+                    "日期": date_str,
+                })
+        else:
+            # 无菜品评价 → fallback：窗口综合
+            records.append({
+                "窗口名": window_name,
+                "菜品名": "窗口综合",
+                "菜系类型": cuisine,
+                "评分": score,
+                "价格": "",
+                "评价文字": " | ".join(base_parts) if base_parts else "",
+                "日期": date_str,
+            })
 
     return pd.DataFrame(records)
 

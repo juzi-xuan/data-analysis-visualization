@@ -546,3 +546,318 @@
     font-size: 13px;
     text-align: center;
 }
+
+/* ========== 菜品选择器 ========== */
+.dish-selector {
+    margin-bottom: 14px;
+    border: 1px solid #e8e0d5;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #faf7f3;
+}
+
+.dish-toggle {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border: none;
+    background: #fff8f0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-family: inherit;
+    text-align: left;
+}
+
+.dish-toggle:hover {
+    background: #FFE4D6;
+    color: #333;
+}
+
+.dish-toggle__count {
+    font-size: 11px;
+    font-weight: 500;
+    color: #FF6B35;
+    background: rgba(255, 107, 53, 0.12);
+    padding: 2px 10px;
+    border-radius: 10px;
+}
+
+.dish-toggle__arrow {
+    font-size: 10px;
+    color: #999;
+    transition: transform 0.2s;
+}
+
+/* 展开面板 */
+.dish-panel {
+    padding: 10px 14px 12px;
+    border-top: 1px solid #e8e0d5;
+    background: #fff;
+}
+
+.dish-panel.hidden {
+    display: none;
+}
+
+/* 搜索框 */
+.dish-search-wrap {
+    position: relative;
+    margin-bottom: 10px;
+}
+
+.dish-search__icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    pointer-events: none;
+}
+
+.dish-search {
+    width: 100%;
+    padding: 8px 12px 8px 30px;
+    border: 1px solid #e0d5c8;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #fafaf8;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.dish-search:focus {
+    outline: none;
+    border-color: #FF6B35;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.12);
+    background: #fff;
+}
+
+/* 菜品列表 */
+.dish-list {
+    max-height: 240px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 4px;
+}
+
+.dish-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dish-list::-webkit-scrollbar-track {
+    background: #f5f1eb;
+    border-radius: 3px;
+}
+
+.dish-list::-webkit-scrollbar-thumb {
+    background: #d9cbc0;
+    border-radius: 3px;
+}
+
+.dish-list::-webkit-scrollbar-thumb:hover {
+    background: #FF6B35;
+}
+
+/* 单个菜品项 */
+.dish-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+    font-size: 13px;
+}
+
+.dish-item:hover {
+    background: #fef0e6;
+}
+
+.dish-item input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    accent-color: #FF6B35;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.dish-item__name {
+    flex: 1;
+    color: #444;
+}
+
+.dish-item__price {
+    font-size: 12px;
+    font-weight: 600;
+    color: #FF6B35;
+    background: rgba(255, 107, 53, 0.1);
+    padding: 2px 8px;
+    border-radius: 8px;
+}
+
+.dish-item.selected {
+    background: rgba(255, 107, 53, 0.08);
+}
+
+.dish-item.selected .dish-item__name {
+    color: #FF6B35;
+    font-weight: 500;
+}
+
+.dish-hint {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #aaa;
+    text-align: center;
+}
+
+/* 已选菜品的动态输入框区域 */
+.dish-inputs {
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-top: 1px solid #e8e0d5;
+    background: #fff;
+}
+
+.dish-input-row {
+    background: #faf7f3;
+    border-radius: 10px;
+    padding: 10px 12px;
+    border: 1px solid #f0e8dd;
+}
+
+.dish-input-row__label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+}
+
+.dish-input-row__remove {
+    border: none;
+    background: rgba(255, 107, 53, 0.1);
+    color: #FF6B35;
+    font-size: 13px;
+    cursor: pointer;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    padding: 0;
+    line-height: 1;
+}
+
+.dish-input-row__remove:hover {
+    background: #FF6B35;
+    color: #fff;
+}
+
+.dish-input-row textarea {
+    width: 100%;
+    min-height: 50px;
+    padding: 8px 10px;
+    border: 1px solid #e0d5c8;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: inherit;
+    resize: vertical;
+    background: #fff;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.dish-input-row textarea:focus {
+    outline: none;
+    border-color: #FF6B35;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.12);
+}
+
+/* ========== 菜品快速标签 ========== */
+.dish-tags-row {
+    margin-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dish-tags-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.dish-tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+    line-height: 1.6;
+    border: 1px solid transparent;
+}
+
+.dish-tag--pos {
+    background: #f0f7f0;
+    color: #2e7d32;
+    border-color: #e0eee0;
+}
+
+.dish-tag--pos:hover {
+    background: #e0f0e0;
+}
+
+.dish-tag--pos.selected {
+    background: #2e7d32;
+    color: #fff;
+    border-color: #2e7d32;
+}
+
+.dish-tag--neg {
+    background: #fff0f0;
+    color: #c62828;
+    border-color: #ffe0e0;
+}
+
+.dish-tag--neg:hover {
+    background: #ffe0e0;
+}
+
+.dish-tag--neg.selected {
+    background: #c62828;
+    color: #fff;
+    border-color: #c62828;
+}
+
+/* 响应式 */
+@media (max-width: 500px) {
+    .dish-toggle {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+    .dish-list {
+        max-height: 180px;
+    }
+    .dish-item {
+        padding: 5px 8px;
+        font-size: 12px;
+    }
+}

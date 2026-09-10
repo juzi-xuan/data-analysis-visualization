@@ -32,12 +32,13 @@ from utils.data_loader import (
     compute_window_avg,
     compute_window_rank,
     ensure_survey_db,
+    enrich_windows_with_dishes,
     load_data,
     load_survey_data,
     save_survey_responses,
 )
 from utils.text_analyzer import compute_word_freq
-from config.windows import WINDOWS, POSITIVE_TAGS, NEGATIVE_TAGS
+from config.windows import WINDOWS, POSITIVE_TAGS, NEGATIVE_TAGS, DISH_TAGS_POSITIVE, DISH_TAGS_NEGATIVE
 
 app = Flask(__name__)
 app.secret_key = "canteen-dashboard-secret"  # session 需要
@@ -48,9 +49,9 @@ app.secret_key = "canteen-dashboard-secret"  # session 需要
 # - _uploaded_df: 上传文件的数据（仅当 source=="upload" 时使用）
 # ============================================================
 
-_source = "mock"
+_source = "survey"
 _uploaded_df = None
-_data_source_label = "模拟数据"
+_data_source_label = "问卷收集数据"
 
 
 def get_df():
@@ -262,11 +263,15 @@ def api_download():
 
 @app.route("/api/survey/windows")
 def api_survey_windows():
-    """返回窗口配置 + 预设标签"""
+    """返回窗口配置（含 dishes）+ 预设标签"""
+    # enrich_windows_with_dishes 会读取 CSV 并给匹配的窗口加上 dishes 数组
+    enriched = enrich_windows_with_dishes(list(WINDOWS))
     return jsonify({
-        "windows": WINDOWS,
+        "windows": enriched,
         "positive_tags": POSITIVE_TAGS,
         "negative_tags": NEGATIVE_TAGS,
+        "dish_tags_positive": DISH_TAGS_POSITIVE,
+        "dish_tags_negative": DISH_TAGS_NEGATIVE,
     })
 
 
