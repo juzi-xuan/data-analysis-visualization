@@ -602,9 +602,9 @@ async function submitSurvey(e) {
         if (data.ok) {
             document.getElementById("success-modal").classList.remove("hidden");
             
-            // 展示人设卡片
-            if (data.persona) {
-                showPersonaCard(data.persona);
+            // 展示多个人设卡片（最多3个）
+            if (data.personas && data.personas.length > 0) {
+                showPersonaCards(data.personas);
                 startParticles();
             }
         } else {
@@ -663,30 +663,52 @@ function closeImageModal() {
     document.body.style.overflow = "";
 }
 
-// ========== 人设卡片展示 ==========
+// ========== 人设卡片展示（多卡片） ==========
 
-function showPersonaCard(persona) {
-    const card = document.getElementById("persona-card");
-    const img = document.getElementById("persona-image");
-    const textArea = document.getElementById("success-text-area");
+function showPersonaCards(personas) {
+    const cardsContainer = document.getElementById("persona-cards");
+    const countEl = document.getElementById("persona-count");
 
-    // 设置图片和名字
-    img.src = persona.image;
-    img.alt = persona.name;
-    
-    // 更新文字区为人设专属文案
-    textArea.innerHTML = `
-        <div class="modal-icon">✨</div>
-        <h2>你的专属人设出炉了！</h2>
-        <p class="persona-name-text">${persona.name}</p>
-        <p class="persona-desc-text">${persona.desc.replace(/\n/g, "<br>")}</p>
-    `;
+    // 更新命中个数
+    countEl.textContent = personas.length;
 
-    // 显示卡片（先 hidden 移除，再添加动画类）
-    card.classList.remove("hidden");
-    // 触发重绘后加上 pop-in 动画
+    // 清空旧卡片
+    cardsContainer.innerHTML = "";
+    cardsContainer.classList.remove("hidden");
+    // JS fallback class（给不支持 :has() 的浏览器）
+    cardsContainer.classList.add(`persona-cards--count-${personas.length}`);
+
+    // 动态生成每个卡片，带 rank 样式
+    personas.forEach((p, idx) => {
+        const rankBadge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
+        const rankClass = idx === 0 ? 'persona-card--primary' : '';
+
+        const card = document.createElement("div");
+        card.className = `persona-card persona-card--${personas.length} ${rankClass}`;
+        card.style.animationDelay = `${idx * 0.15}s`;
+        card.innerHTML = `
+            <div class="persona-card__shine"></div>
+            <img class="persona-card__image" src="${p.image}" alt="${p.name}"
+                 onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22150%22><rect width=%22100%22 height=%22100%22 fill=%22%23FFE4D6%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22>🏷️</text></svg>'">
+            <div class="persona-card__glow"></div>
+            <div class="persona-card__rank">${rankBadge}</div>
+            <div class="persona-card__info">
+                <div class="persona-card__name">${p.name}</div>
+                <div class="persona-card__pct">
+                    匹配度 ${p.pct}%
+                    <div class="persona-card__bar" style="width: ${p.pct}%"></div>
+                </div>
+            </div>
+            <div class="persona-card__desc">${p.desc.replace(/\n/g, "<br>")}</div>
+        `;
+        cardsContainer.appendChild(card);
+    });
+
+    // 触发重绘后加上 pop-in 动画（依次弹出）
     requestAnimationFrame(() => {
-        card.classList.add("pop-in");
+        cardsContainer.querySelectorAll(".persona-card").forEach(card => {
+            card.classList.add("pop-in");
+        });
     });
 }
 
@@ -783,14 +805,12 @@ function startParticles() {
             particleAnimId = null;
         }
         modal.classList.add("hidden");
-        document.getElementById("persona-card")?.classList.remove("pop-in");
-        document.getElementById("persona-card")?.classList.add("hidden");
-        // 恢复默认文字
-        document.getElementById("success-text-area").innerHTML = `
-            <div class="modal-icon">🎉</div>
-            <h2>感谢你的评价！</h2>
-            <p>你的反馈会帮助食堂变得更好吃 🍜</p>
-        `;
+        // 重置多卡片容器
+        const cardsContainer = document.getElementById("persona-cards");
+        cardsContainer.innerHTML = "";
+        cardsContainer.classList.add("hidden");
+        // 恢复默认文字（保持 HTML 里的结构）
+        document.getElementById("persona-count").textContent = "1";
         document.getElementById("modal-close").removeEventListener("click", stopHandler);
     };
 

@@ -387,22 +387,26 @@ def api_survey_submit():
         _source = "survey"
         _data_source_label = "问卷收集数据"
 
-        # 计算用户人设标签
+        # 计算用户人设标签（返回 Top 3）
         window_map = {w["name"]: w for w in WINDOWS}
-        persona = compute_persona(responses, window_map)
+        personas = compute_persona(responses, window_map, top_n=3)
 
         df = load_survey_data()
+        # 转换为前端友好的格式
+        personas_out = [{
+            "key": p["key"],
+            "name": p["name"],
+            "image": p["image"],
+            "desc": p["desc"],
+            "pct": p["pct"],
+        } for p in personas]
+
         return jsonify({
             "ok": True,
             "msg": f"感谢！已保存 {saved} 条评价",
             "saved": saved,
             "total_survey": len(df),
-            "persona": {
-                "key": persona["key"],
-                "name": persona["name"],
-                "image": persona["image"],
-                "desc": persona["desc"],
-            },
+            "personas": personas_out,
         })
     except Exception as e:
         return jsonify({"ok": False, "msg": f"保存失败: {str(e)}"}), 500

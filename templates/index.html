@@ -102,6 +102,42 @@
         .btn-reroll:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 107, 53, 0.5); }
         .btn-reroll:active { transform: scale(0.96); }
 
+        /* ===== 模块2：窗口搜索框 ===== */
+        .window-search {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #fff;
+            border-radius: 24px;
+            padding: 6px 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 16px;
+            max-width: 400px;
+        }
+        .window-search input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 0.95rem;
+            background: transparent;
+            padding: 6px 0;
+        }
+        .window-search .search-icon { color: #FF6B35; font-size: 1rem; }
+        .window-search .clear-btn {
+            border: none;
+            background: #eee;
+            color: #888;
+            border-radius: 50%;
+            width: 22px; height: 22px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .window-search .clear-btn.show { display: flex; }
+
         /* ===== 模块2：窗口口碑卡片 ===== */
         .window-grid {
             display: grid;
@@ -332,6 +368,11 @@
     <!-- 模块2：窗口口碑 -->
     <section class="section">
         <h2 class="section-title">🔥 窗口口碑（怕踩雷？点它看详情）</h2>
+        <div class="window-search">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="window-search-input" placeholder="输入窗口名称搜索，如：麻辣香锅、兰州拉面…">
+            <button class="clear-btn" id="window-search-clear" title="清除">✕</button>
+        </div>
         <div class="window-grid" id="window-grid">
             <!-- JS 动态生成 -->
         </div>

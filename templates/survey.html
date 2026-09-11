@@ -46,18 +46,16 @@
             <!-- 粒子特效画布 -->
             <canvas id="particle-canvas"></canvas>
 
-            <!-- 人设卡片 -->
-            <div id="persona-card" class="persona-card hidden">
-                <div class="persona-card__shine"></div>
-                <img class="persona-card__image" id="persona-image" alt="人设标签">
-                <div class="persona-card__glow"></div>
-            </div>
-
             <!-- 感谢文字区 -->
             <div id="success-text-area">
-                <div class="modal-icon">🎉</div>
-                <h2>感谢你的评价！</h2>
-                <p>你的反馈会帮助食堂变得更好吃 🍜</p>
+                <div class="modal-icon">✨</div>
+                <h2 id="success-title">你的专属人设出炉了！</h2>
+                <p class="persona-lead-text">你命中了 <span id="persona-count">1</span> 种食堂人设 ↓</p>
+            </div>
+
+            <!-- 多个人设卡片容器 -->
+            <div id="persona-cards" class="persona-cards hidden">
+                <!-- JS 动态渲染多卡片 -->
             </div>
 
             <!-- 操作按钮 -->

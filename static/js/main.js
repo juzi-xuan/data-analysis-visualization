@@ -8,6 +8,9 @@ const COLORS = ["#FF6B35", "#FFB347", "#FFD700", "#E85D75", "#6AB04C", "#4A90D9"
 // ECharts 实例
 const miniCharts = {};
 
+// 窗口口碑完整列表（用于搜索过滤）
+let allWindows = [];
+
 // 筛选状态
 let filters = { min_price: null, max_price: null, cuisine: "全部", preference: "" };
 
@@ -123,11 +126,42 @@ async function loadRandom() {
 async function loadWindowList() {
     const res = await fetch("/api/charts");
     const data = await res.json();
-    const windows = data.window_avg || [];
+    allWindows = data.window_avg || [];
 
+    renderWindowCards(allWindows);
+
+    // 绑定搜索框
+    const searchInput = document.getElementById("window-search-input");
+    const clearBtn = document.getElementById("window-search-clear");
+    if (searchInput) {
+        searchInput.addEventListener("input", () => {
+            const kw = searchInput.value.trim().toLowerCase();
+            clearBtn.classList.toggle("show", kw.length > 0);
+            const filtered = kw
+                ? allWindows.filter(w => w.name.toLowerCase().includes(kw))
+                : allWindows;
+            renderWindowCards(filtered);
+        });
+    }
+    if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
+            searchInput.value = "";
+            clearBtn.classList.remove("show");
+            renderWindowCards(allWindows);
+            searchInput.focus();
+        });
+    }
+}
+
+function renderWindowCards(windows) {
     const grid = document.getElementById("window-grid");
     if (!grid) return;
     grid.innerHTML = "";
+
+    if (windows.length === 0) {
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#999;padding:30px;">😢 没有找到匹配的窗口</div>';
+        return;
+    }
 
     windows.forEach(w => {
         const card = document.createElement("div");
