@@ -2,12 +2,34 @@
 """
 食堂窗口评价的模拟数据生成器
 用于在没有真实问卷数据时展示看板效果
+** 已扩展：同时生成 tags 字段（正面/负面标签），支撑维度评分计算
 """
 
+import json
 import random
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
+
+# --- 标签库 ---
+POS_TAGS = ["好吃", "干净卫生", "服务好", "分量足", "价格实惠", "口味正宗", "食材新鲜", "出餐快"]
+NEG_TAGS = ["味道一般", "油太重", "量太少", "价格偏贵", "太辣了", "食物偏凉", "卫生一般", "排队太久"]
+
+# 维度 → 相关关键词映射（用于从 tags 提取维度分）
+DIMENSION_POS = {
+    "口味": ["好吃", "口味正宗"],
+    "分量": ["分量足"],
+    "性价比": ["价格实惠"],
+    "卫生": ["干净卫生", "食材新鲜"],
+    "速度": ["出餐快"],
+}
+DIMENSION_NEG = {
+    "口味": ["味道一般", "太辣了"],
+    "分量": ["量太少"],
+    "性价比": ["价格偏贵"],
+    "卫生": ["卫生一般"],
+    "速度": ["排队太久"],
+}
 
 # 7 个真实食堂窗口，每个窗口有多个菜品和菜系类型
 WINDOWS = {
@@ -109,6 +131,28 @@ def _gen_price(base: float, price_boost: float = 0) -> float:
     return round(max(3, price), 1)
 
 
+def _gen_tags(score: float) -> str:
+    """根据评分生成标签列表（JSON 字符串）"""
+    tags = []
+    # 评分越高，加的正面标签越多；越低，负面标签越多
+    if score >= 4.3:
+        n_pos = random.randint(2, 4)
+        n_neg = random.randint(0, 1)
+    elif score >= 3.5:
+        n_pos = random.randint(1, 2)
+        n_neg = random.randint(0, 2)
+    elif score >= 2.5:
+        n_pos = random.randint(0, 1)
+        n_neg = random.randint(1, 3)
+    else:
+        n_pos = random.randint(0, 1)
+        n_neg = random.randint(2, 4)
+
+    tags.extend(random.sample(POS_TAGS, n_pos))
+    tags.extend(random.sample(NEG_TAGS, n_neg))
+    return json.dumps(tags, ensure_ascii=False)
+
+
 def generate_canteen_data(n: int = 200, seed: int = 42) -> pd.DataFrame:
     """
     生成食堂窗口评价的模拟数据
@@ -159,6 +203,7 @@ def generate_canteen_data(n: int = 200, seed: int = 42) -> pd.DataFrame:
             "价格": price,
             "评价文字": comment,
             "日期": date,
+            "tags": _gen_tags(score),
         })
 
     df = pd.DataFrame(records)

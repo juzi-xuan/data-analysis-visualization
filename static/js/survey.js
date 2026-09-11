@@ -601,6 +601,12 @@ async function submitSurvey(e) {
 
         if (data.ok) {
             document.getElementById("success-modal").classList.remove("hidden");
+            
+            // 展示人设卡片
+            if (data.persona) {
+                showPersonaCard(data.persona);
+                startParticles();
+            }
         } else {
             alert("提交失败：" + (data.msg || "请稍后重试"));
         }
@@ -655,6 +661,145 @@ function closeImageModal() {
     if (!imgModalEl) return;
     imgModalEl.classList.add("hidden");
     document.body.style.overflow = "";
+}
+
+// ========== 人设卡片展示 ==========
+
+function showPersonaCard(persona) {
+    const card = document.getElementById("persona-card");
+    const img = document.getElementById("persona-image");
+    const textArea = document.getElementById("success-text-area");
+
+    // 设置图片和名字
+    img.src = persona.image;
+    img.alt = persona.name;
+    
+    // 更新文字区为人设专属文案
+    textArea.innerHTML = `
+        <div class="modal-icon">✨</div>
+        <h2>你的专属人设出炉了！</h2>
+        <p class="persona-name-text">${persona.name}</p>
+        <p class="persona-desc-text">${persona.desc.replace(/\n/g, "<br>")}</p>
+    `;
+
+    // 显示卡片（先 hidden 移除，再添加动画类）
+    card.classList.remove("hidden");
+    // 触发重绘后加上 pop-in 动画
+    requestAnimationFrame(() => {
+        card.classList.add("pop-in");
+    });
+}
+
+// ========== 粒子特效 ==========
+
+let particleAnimId = null;
+
+function startParticles() {
+    const canvas = document.getElementById("particle-canvas");
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext("2d");
+    const modal = document.getElementById("success-modal");
+    const modalContent = modal.querySelector(".modal-content");
+    
+    // 关闭时停止旧粒子
+    if (particleAnimId) {
+        cancelAnimationFrame(particleAnimId);
+        particleAnimId = null;
+    }
+
+    // 加一点延迟，确保 DOM 完成布局
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            const rect = modalContent.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            // 粒子类
+            class Particle {
+                constructor() {
+                    this.reset();
+                    // 随机起始位置（从中心向外扩散）
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * Math.min(rect.width, rect.height) * 0.3 + 30;
+                    this.x = canvas.width / 2 + Math.cos(angle) * dist;
+                    this.y = canvas.height / 2 + Math.sin(angle) * dist;
+                }
+                reset() {
+                    const colors = ['#FF6B35', '#FFB347', '#FFD700', '#E85D75', '#6AB04C', '#4A90D9'];
+                    this.color = colors[Math.floor(Math.random() * colors.length)];
+                    this.size = Math.random() * 5 + 3;
+                    this.speedX = (Math.random() - 0.5) * 1.5;
+                    this.speedY = (Math.random() - 0.5) * 1.5 - 0.8; // 向上漂浮
+                    this.alpha = Math.random() * 0.5 + 0.5;
+                    this.decay = Math.random() * 0.005 + 0.002;
+                }
+                update() {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+                    this.speedY -= 0.008; // 缓慢上浮
+                    this.alpha -= this.decay;
+                    if (this.alpha <= 0) this.reset();
+                }
+                draw() {
+                    ctx.save();
+                    ctx.globalAlpha = this.alpha;
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    // 发光效果
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = 10;
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            // 创建粒子数组
+            const particles = [];
+            const particleCount = 80;
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle());
+            }
+
+            // 动画循环
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.update();
+                    p.draw();
+                });
+                particleAnimId = requestAnimationFrame(animate);
+            }
+            animate();
+        });
+    });
+
+    // 监听关闭事件，停止动画
+    const stopHandler = () => {
+        if (particleAnimId) {
+            cancelAnimationFrame(particleAnimId);
+            particleAnimId = null;
+        }
+        modal.classList.add("hidden");
+        document.getElementById("persona-card")?.classList.remove("pop-in");
+        document.getElementById("persona-card")?.classList.add("hidden");
+        // 恢复默认文字
+        document.getElementById("success-text-area").innerHTML = `
+            <div class="modal-icon">🎉</div>
+            <h2>感谢你的评价！</h2>
+            <p>你的反馈会帮助食堂变得更好吃 🍜</p>
+        `;
+        document.getElementById("modal-close").removeEventListener("click", stopHandler);
+    };
+
+    document.getElementById("modal-close").addEventListener("click", stopHandler);
+    
+    // 点击遮罩也关闭
+    modal.addEventListener("click", (e) => {
+        if (e.target === modal) stopHandler();
+    }, { once: true });
 }
 
 // ========== 启动 ==========

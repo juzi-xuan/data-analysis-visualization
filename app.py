@@ -23,13 +23,21 @@ from flask import (
 # 导入我们自己写的模块
 from utils.data_loader import (
     apply_filters,
+    compute_analysis_stats,
+    compute_canteen_compare,
     compute_cuisine_score,
     compute_data_date,
     compute_price_scatter,
+    compute_recommend_random,
     compute_score_dist,
+    compute_search_advanced,
+    compute_sentiment,
     compute_stats,
+    compute_student_summary,
     compute_table_data,
+    compute_trend,
     compute_window_avg,
+    compute_window_detail,
     compute_window_rank,
     ensure_survey_db,
     enrich_windows_with_dishes,
@@ -38,6 +46,7 @@ from utils.data_loader import (
     save_survey_responses,
 )
 from utils.text_analyzer import compute_word_freq
+from utils.persona import compute_persona
 from config.windows import WINDOWS, POSITIVE_TAGS, NEGATIVE_TAGS, DISH_TAGS_POSITIVE, DISH_TAGS_NEGATIVE
 
 app = Flask(__name__)
@@ -89,6 +98,24 @@ def index():
 def survey():
     """渲染问卷页面"""
     return render_template("survey.html")
+
+
+@app.route("/analysis")
+def analysis():
+    """渲染分析师看板页面（简历版，独立入口，无跳转按钮）"""
+    global _data_source_label
+
+    df = get_df()
+    cuisines = ["全部"] + sorted(df["菜系类型"].unique().tolist())
+
+    return render_template(
+        "analysis.html",
+        data_source=_data_source_label,
+        data_date=compute_data_date(df),
+        total_count=len(df),
+        cuisines=cuisines,
+        current_source=_source,
+    )
 
 
 # ============================================================
@@ -145,6 +172,57 @@ def api_stats():
     stats["data_source"] = _data_source_label
     stats["data_date"] = compute_data_date(df)
     return jsonify(stats)
+
+
+@app.route("/api/student_summary")
+def api_student_summary():
+    """学生决策看板专用汇总（推荐/人气/性价比/避雷 4 张卡片）"""
+    df = get_df()
+    search = request.args.get("search", "").strip()
+    cuisine = request.args.get("cuisine", "").strip()
+
+    filtered = apply_filters(df, search, cuisine)
+    return jsonify(compute_student_summary(filtered))
+
+
+# ============================================================
+# 学生端：三个推荐功能 API
+# ============================================================
+
+@app.route("/api/recommend/random")
+def api_recommend_random():
+    """🎲 随机推荐一个菜品（今天吃什么）"""
+    df = get_df()
+    return jsonify(compute_recommend_random(df))
+
+
+@app.route("/api/recommend/window")
+def api_recommend_window():
+    """🔥 窗口口碑详情（维度评分 + 推荐菜品 + 同学反馈问题）"""
+    df = get_df()
+    window_name = request.args.get("window", "").strip()
+    if not window_name:
+        return jsonify({"ok": False, "msg": "缺少窗口名参数"}), 400
+    return jsonify(compute_window_detail(df, window_name))
+
+
+@app.route("/api/recommend/search")
+def api_recommend_search():
+    """🔍 条件筛选菜品（预算 + 类型 + 偏好）"""
+    df = get_df()
+    try:
+        min_price = request.args.get("min_price")
+        max_price = request.args.get("max_price")
+        min_price = float(min_price) if min_price else None
+        max_price = float(max_price) if max_price else None
+    except ValueError:
+        min_price = max_price = None
+
+    cuisine = request.args.get("cuisine", "").strip()
+    preference = request.args.get("preference", "").strip()
+
+    result = compute_search_advanced(df, min_price, max_price, cuisine, preference)
+    return jsonify({"ok": True, "count": len(result), "items": result})
 
 
 @app.route("/api/charts")
@@ -309,12 +387,22 @@ def api_survey_submit():
         _source = "survey"
         _data_source_label = "问卷收集数据"
 
+        # 计算用户人设标签
+        window_map = {w["name"]: w for w in WINDOWS}
+        persona = compute_persona(responses, window_map)
+
         df = load_survey_data()
         return jsonify({
             "ok": True,
             "msg": f"感谢！已保存 {saved} 条评价",
             "saved": saved,
             "total_survey": len(df),
+            "persona": {
+                "key": persona["key"],
+                "name": persona["name"],
+                "image": persona["image"],
+                "desc": persona["desc"],
+            },
         })
     except Exception as e:
         return jsonify({"ok": False, "msg": f"保存失败: {str(e)}"}), 500
@@ -331,6 +419,38 @@ def api_survey_records():
 
 
 # ============================================================
+# 分析师看板专用 API
+# ============================================================
+
+@app.route("/api/analysis/stats")
+def api_analysis_stats():
+    """分析师视角统计量（含洞察摘要）"""
+    df = get_df()
+    return jsonify(compute_analysis_stats(df))
+
+
+@app.route("/api/analysis/trend")
+def api_analysis_trend():
+    """评分时间趋势"""
+    df = get_df()
+    return jsonify(compute_trend(df))
+
+
+@app.route("/api/analysis/canteen_compare")
+def api_analysis_canteen_compare():
+    """一食堂 vs 二食堂 对比"""
+    df = get_df()
+    return jsonify(compute_canteen_compare(df))
+
+
+@app.route("/api/analysis/sentiment")
+def api_analysis_sentiment():
+    """正负情感标签占比"""
+    df = get_df()
+    return jsonify(compute_sentiment(df))
+
+
+# ============================================================
 # 启动入口
 # ============================================================
 
@@ -341,8 +461,9 @@ if __name__ == "__main__":
     print("=" * 60)
     print("🍱 食堂窗口菜品评价看板")
     print(f"📊 默认数据源: {_data_source_label}")
-    print(f"🚀 看板:  http://127.0.0.1:8000")
-    print(f"📝 问卷:  http://127.0.0.1:8000/survey")
+    print(f"👥 学生决策看板:  http://127.0.0.1:8000")
+    print(f"📝 问卷:          http://127.0.0.1:8000/survey")
+    print(f"🔬 分析看板(简历): http://127.0.0.1:8000/analysis")
     print("=" * 60)
 
     app.run(host="0.0.0.0", port=8000, debug=False)

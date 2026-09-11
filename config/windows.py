@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-食堂窗口配置（真实窗口）
-- 7 个真实窗口 + 本地图片
+食堂窗口配置（真实窗口 + 本地图片）
+- 所有窗口从 static/images 目录自动生成
 - 统一管理，问卷页面和看板都引用这里
 """
 
@@ -47,7 +47,7 @@ DISH_TAGS_NEGATIVE = [
     "🥶偏凉",
 ]
 
-# 7 个真实食堂窗口
+# 全部食堂窗口（40 个，从 images 目录生成）
 WINDOWS = [
     {
         "name": "兰州拉面（一食堂周边）",
@@ -56,27 +56,165 @@ WINDOWS = [
         "image": "/static/images/兰州拉面（一食堂周边）.jpg",
     },
     {
+        "name": "刘福恺炸鸡腿（一食堂三楼）",
+        "canteen": "一食堂",
+        "cuisine": "小吃快餐",
+        "image": "/static/images/刘福恺炸鸡腿（一食堂三楼）.jpg",
+    },
+    {
+        "name": "刘记烧腊饭（一食堂一楼）",
+        "canteen": "一食堂",
+        "cuisine": "盖浇饭",
+        "image": "/static/images/刘记烧腊饭（一食堂一楼）.jpg",
+    },
+    {
+        "name": "包点很忙（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "面点",
+        "image": "/static/images/包点很忙（一食堂二楼）.jpg",
+    },
+    {
+        "name": "北京烤鸭热卤饭（一食堂三楼）",
+        "canteen": "一食堂",
+        "cuisine": "盖浇饭",
+        "image": "/static/images/北京烤鸭热卤饭（一食堂三楼）.jpg",
+    },
+    {
         "name": "北方烤饼（二食堂）",
         "canteen": "二食堂",
         "cuisine": "面食",
         "image": "/static/images/北方烤饼（二食堂）.jpg",
     },
     {
+        "name": "南方面点（一食堂一楼）",
+        "canteen": "一食堂",
+        "cuisine": "面点",
+        "image": "/static/images/南方面点（一食堂一楼）.jpg",
+    },
+    {
+        "name": "周妈麻辣烫（一食堂三楼）",
+        "canteen": "一食堂",
+        "cuisine": "小吃快餐",
+        "image": "/static/images/周妈麻辣烫（一食堂三楼）.jpg",
+    },
+    {
+        "name": "大伙灶（一食堂一楼）",
+        "canteen": "一食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/大伙灶（一食堂一楼）.jpg",
+    },
+    {
+        "name": "大伙灶（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/大伙灶（一食堂二楼）.jpg",
+    },
+    {
+        "name": "大火灶（一食堂）",
+        "canteen": "一食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/大火灶（一食堂）.jpg",
+    },
+    {
+        "name": "小时光西点屋（一食堂一楼）",
+        "canteen": "一食堂",
+        "cuisine": "面包甜品",
+        "image": "/static/images/小时光西点屋（一食堂一楼）.jpg",
+    },
+    {
+        "name": "小碗当家（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/小碗当家（一食堂二楼）.jpg",
+    },
+    {
+        "name": "小碗菜（一食堂三楼）",
+        "canteen": "一食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/小碗菜（一食堂三楼）.jpg",
+    },
+    {
         "name": "平江特色粉面（一食堂一楼）",
         "canteen": "一食堂",
-        "cuisine": "湖南菜",
+        "cuisine": "面食",
         "image": "/static/images/平江特色粉面（一食堂一楼）.jpg",
+    },
+    {
+        "name": "广式肠粉（一食堂三楼）",
+        "canteen": "一食堂",
+        "cuisine": "粤式点心",
+        "image": "/static/images/广式肠粉（一食堂三楼）.jpg",
+    },
+    {
+        "name": "无名氏（一食堂一楼）",
+        "canteen": "一食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/无名氏（一食堂一楼）.jpg",
     },
     {
         "name": "朝阳洲牛肉粉面（一食堂一楼）",
         "canteen": "一食堂",
-        "cuisine": "江西菜",
+        "cuisine": "面食",
         "image": "/static/images/朝阳洲牛肉粉面（一食堂一楼）.jpg",
+    },
+    {
+        "name": "柳无双柳州螺蛳粉（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "特色粉面",
+        "image": "/static/images/柳无双柳州螺蛳粉（一食堂二楼）.jpg",
+    },
+    {
+        "name": "毛氏卤肉饭（一食堂三楼）",
+        "canteen": "一食堂",
+        "cuisine": "盖浇饭",
+        "image": "/static/images/毛氏卤肉饭（一食堂三楼）.jpg",
+    },
+    {
+        "name": "水煮鱼（一食堂三楼）",
+        "canteen": "一食堂",
+        "cuisine": "川菜",
+        "image": "/static/images/水煮鱼（一食堂三楼）.jpg",
+    },
+    {
+        "name": "湘乡银丝粉（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "面食",
+        "image": "/static/images/湘乡银丝粉（一食堂二楼）.jpg",
+    },
+    {
+        "name": "湘味蒸菜（一食堂一楼）",
+        "canteen": "一食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/湘味蒸菜（一食堂一楼）.jpg",
+    },
+    {
+        "name": "烤盘饭·重庆鸡公煲（一食堂三楼）",
+        "canteen": "一食堂",
+        "cuisine": "焖锅",
+        "image": "/static/images/烤盘饭·重庆鸡公煲（一食堂三楼）.jpg",
+    },
+    {
+        "name": "烤肉虾仁捞双拌饭（一食堂一楼）",
+        "canteen": "一食堂",
+        "cuisine": "盖浇饭",
+        "image": "/static/images/烤肉虾仁捞双拌饭（一食堂一楼）.jpg",
+    },
+    {
+        "name": "烧腊饭套餐（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "盖浇饭",
+        "image": "/static/images/烧腊饭套餐（一食堂二楼）.jpg",
+    },
+    {
+        "name": "牛鲜生粉面（一食堂三楼）",
+        "canteen": "一食堂",
+        "cuisine": "面食",
+        "image": "/static/images/牛鲜生粉面（一食堂三楼）.jpg",
     },
     {
         "name": "王喜峰麻辣烫（二食堂）",
         "canteen": "二食堂",
-        "cuisine": "川菜",
+        "cuisine": "小吃快餐",
         "image": "/static/images/王喜峰麻辣烫（二食堂）.jpg",
     },
     {
@@ -86,9 +224,69 @@ WINDOWS = [
         "image": "/static/images/精品粮自选（二食堂）.jpg",
     },
     {
+        "name": "精品粮贩自选（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/精品粮贩自选（一食堂二楼）.jpg",
+    },
+    {
+        "name": "自选（一食堂一楼）",
+        "canteen": "一食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/自选（一食堂一楼）.jpg",
+    },
+    {
+        "name": "蒸排骨饭（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/蒸排骨饭（一食堂二楼）.jpg",
+    },
+    {
+        "name": "袁记云饺（一食堂一楼）",
+        "canteen": "一食堂",
+        "cuisine": "面点",
+        "image": "/static/images/袁记云饺（一食堂一楼）.jpg",
+    },
+    {
+        "name": "里手馄饨粉面（一食堂三楼）",
+        "canteen": "一食堂",
+        "cuisine": "面食",
+        "image": "/static/images/里手馄饨粉面（一食堂三楼）.jpg",
+    },
+    {
+        "name": "重庆小面（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "面食",
+        "image": "/static/images/重庆小面（一食堂二楼）.jpg",
+    },
+    {
+        "name": "隆江猪脚饭（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "盖浇饭",
+        "image": "/static/images/隆江猪脚饭（一食堂二楼）.jpg",
+    },
+    {
+        "name": "韩国料理（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "韩式",
+        "image": "/static/images/韩国料理（一食堂二楼）.jpg",
+    },
+    {
+        "name": "饭拾一五花肉拌饭（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "盖浇饭",
+        "image": "/static/images/饭拾一五花肉拌饭（一食堂二楼）.jpg",
+    },
+    {
+        "name": "黄太爷焖锅（一食堂二楼）",
+        "canteen": "一食堂",
+        "cuisine": "焖锅",
+        "image": "/static/images/黄太爷焖锅（一食堂二楼）.jpg",
+    },
+    {
         "name": "黄焖鸡（二食堂）",
         "canteen": "二食堂",
-        "cuisine": "家常菜",
+        "cuisine": "盖浇饭",
         "image": "/static/images/黄焖鸡（二食堂）.jpg",
     },
 ]

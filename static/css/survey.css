@@ -428,6 +428,124 @@
     animation: slideUp 0.3s ease;
 }
 
+/* 人设弹窗变体 */
+.modal-content--persona {
+    max-width: 380px;
+    padding: 36px 36px 28px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* 粒子画布 */
+#particle-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* 人设卡片 */
+.persona-card {
+    position: relative;
+    width: 160px;
+    height: 200px;
+    margin: 0 auto 20px;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(255, 107, 53, 0.35);
+    z-index: 2;
+}
+
+.persona-card.hidden {
+    display: none;
+}
+
+.persona-card__image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* 卡片光泽扫过效果 */
+.persona-card__shine {
+    position: absolute;
+    top: 0; left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.4),
+        transparent
+    );
+    transform: skewX(-20deg);
+    z-index: 3;
+    animation: shineSweep 2s ease-out infinite;
+}
+
+@keyframes shineSweep {
+    0% { left: -100%; }
+    60%, 100% { left: 150%; }
+}
+
+/* 卡片底部光晕 */
+.persona-card__glow {
+    position: absolute;
+    bottom: -20px; left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 30px;
+    background: radial-gradient(ellipse, rgba(255, 179, 71, 0.5), transparent 70%);
+    z-index: -1;
+}
+
+/* 卡片弹出动画 */
+.persona-card.pop-in {
+    animation: personaPopIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 0.5) forwards;
+}
+
+@keyframes personaPopIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.3) translateY(30px) rotate(-10deg);
+    }
+    60% {
+        opacity: 1;
+        transform: scale(1.1) translateY(-5px) rotate(2deg);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0) rotate(0deg);
+    }
+}
+
+/* 人设专属文字 */
+.persona-name-text {
+    font-size: 20px !important;
+    font-weight: 700;
+    color: #FF6B35;
+    margin-bottom: 8px !important;
+    z-index: 2;
+    position: relative;
+}
+
+.persona-desc-text {
+    font-size: 13px !important;
+    color: #666;
+    line-height: 1.7;
+    margin-bottom: 20px !important;
+    z-index: 2;
+    position: relative;
+}
+
+/* 按钮区独立 */
+.modal-buttons {
+    z-index: 2;
+    position: relative;
+}
+
 .modal-icon {
     font-size: 56px;
     margin-bottom: 12px;

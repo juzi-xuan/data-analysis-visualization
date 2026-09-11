@@ -1,554 +1,323 @@
 // ============================================================
-// 食堂评价看板 - 前端逻辑
-// 负责：请求后端 API、渲染统计卡片、ECharts 图表、数据表格
+// 🍱 学生端新主逻辑：三模块（随机推荐 / 窗口口碑 / 条件筛选）
+// + 底部迷你图表
 // ============================================================
 
-// ============ 全局状态 ============
-const state = {
-    search: "",
-    cuisine: "全部",
-    page: 1,
-    size: 20,
-    dataSource: "模拟数据",
-};
-
-// ECharts 实例缓存
-const charts = {};
-
-// 移动端关闭侧边栏抽屉的辅助函数
-function closeSidebarIfMobile() {
-    if (window.innerWidth <= 768) {
-        const sidebar = document.querySelector(".sidebar");
-        const backdrop = document.getElementById("sidebar-backdrop");
-        const menuToggle = document.getElementById("menu-toggle");
-        if (sidebar) sidebar.classList.remove("open");
-        if (backdrop) backdrop.classList.remove("show");
-        if (menuToggle) menuToggle.textContent = "☰";
-    }
-}
-
-// ECharts 统一配色（橙黄暖色调）
 const COLORS = ["#FF6B35", "#FFB347", "#FFD700", "#E85D75", "#6AB04C", "#4A90D9", "#9B59B6", "#1ABC9C"];
 
+// ECharts 实例
+const miniCharts = {};
+
+// 筛选状态
+let filters = { min_price: null, max_price: null, cuisine: "全部", preference: "" };
 
 // ============ 页面加载 ============
 window.onload = async () => {
-    console.log("🍱 食堂评价看板前端已加载");
-    await init();
+    initMiniCharts();
     bindEvents();
+    await loadCuisineChips();
+    await loadRandom();
+    await loadWindowList();
+    await loadMiniCharts();
 };
 
-async function init() {
-    // 初始化所有 ECharts 实例（先创建容器）
-    initCharts();
-    // 加载菜系筛选标签
-    await loadCuisines();
-    // 加载所有数据
-    await loadAllData();
+function initMiniCharts() {
+    miniCharts.scoreDist = echarts.init(document.getElementById("mini-score-dist"));
+    miniCharts.cuisine = echarts.init(document.getElementById("mini-cuisine-score"));
+    window.addEventListener("resize", () => Object.values(miniCharts).forEach(c => c.resize()));
 }
 
-function initCharts() {
-    const chartIds = [
-        "chart-window-avg",
-        "chart-score-dist",
-        "chart-window-rank",
-        "chart-cuisine-score",
-        "chart-price-scatter",
-        "chart-wordcloud",
-    ];
-    chartIds.forEach(id => {
-        const dom = document.getElementById(id);
-        if (dom) {
-            charts[id] = echarts.init(dom, null, { renderer: "canvas" });
-        }
-    });
-
-    // 窗口大小变化时重绘
-    window.addEventListener("resize", () => {
-        Object.values(charts).forEach(c => c.resize());
-    });
-    // 移动端横竖屏切换时也重绘
-    window.addEventListener("orientationchange", () => {
-        setTimeout(() => {
-            Object.values(charts).forEach(c => c.resize());
-        }, 300);
-    });
-}
-
-
-// ============ 绑定事件 ============
+// ============ 事件绑定 ============
 function bindEvents() {
-    // 数据源切换
-    const sourceSelect = document.getElementById("source-select");
-    if (sourceSelect) {
-        sourceSelect.addEventListener("change", async (e) => {
-            closeSidebarIfMobile();
-            const target = e.target.value;
-            await switchSource(target);
+    // 换一个按钮
+    document.getElementById("btn-reroll")?.addEventListener("click", loadRandom);
+
+    // 关闭弹窗
+    const modal = document.getElementById("window-modal");
+    document.getElementById("modal-close")?.addEventListener("click", () => modal.classList.remove("show"));
+    modal?.addEventListener("click", (e) => {
+        if (e.target === modal) modal.classList.remove("show");
+    });
+
+    // 预算 chip
+    document.querySelectorAll("#price-chips .chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+            document.querySelectorAll("#price-chips .chip").forEach(c => c.classList.remove("active"));
+            chip.classList.add("active");
+            const mn = chip.dataset.min;
+            const mx = chip.dataset.max;
+            filters.min_price = mn !== "" ? parseFloat(mn) : null;
+            filters.max_price = mx !== "" ? parseFloat(mx) : null;
         });
-    }
-
-    // 搜索框（debounce 300ms）
-    let searchTimer = null;
-    const searchInput = document.getElementById("search-input");
-    searchInput.addEventListener("input", (e) => {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(async () => {
-            state.search = e.target.value.trim();
-            state.page = 1;
-            await loadAllData();
-        }, 300);
     });
 
-    // 文件上传
-    const fileUpload = document.getElementById("file-upload");
-    fileUpload.addEventListener("change", async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const msgEl = document.getElementById("upload-msg");
-        msgEl.className = "upload-msg";
-        msgEl.textContent = "⏳ 上传中...";
-
-        const formData = new FormData();
-        formData.append("file", file);
-
-        try {
-            const res = await fetch("/api/upload", { method: "POST", body: formData });
-            const data = await res.json();
-            if (data.ok) {
-                msgEl.className = "upload-msg success";
-                msgEl.textContent = "✅ " + data.msg;
-                state.dataSource = data.data_source;
-                // 重新加载所有
-                await loadCuisines();
-                await loadAllData();
-                // 更新顶部显示
-                document.getElementById("data-source-badge").textContent =
-                    "📊 " + data.data_source;
-                document.getElementById("header-date").textContent = data.data_date;
-            } else {
-                msgEl.className = "upload-msg error";
-                msgEl.textContent = "❌ " + data.msg;
-            }
-        } catch (err) {
-            msgEl.className = "upload-msg error";
-            msgEl.textContent = "❌ 上传失败: " + err.message;
-        }
+    // 偏好 chip
+    document.querySelectorAll("#pref-chips .chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+            document.querySelectorAll("#pref-chips .chip").forEach(c => c.classList.remove("active"));
+            chip.classList.add("active");
+            filters.preference = chip.dataset.pref || "";
+        });
     });
 
-    // 重置按钮
-    document.getElementById("reset-btn").addEventListener("click", async () => {
-        closeSidebarIfMobile();
-        const res = await fetch("/api/reset");
-        await res.json();
-        document.getElementById("data-source-badge").textContent = "📊 模拟数据";
-        document.getElementById("upload-msg").textContent = "";
-        await loadCuisines();
-        await loadAllData();
-    });
+    // 搜索按钮
+    document.getElementById("btn-search")?.addEventListener("click", loadSearchResults);
+}
 
-    // 下载 CSV
-    document.getElementById("download-btn").addEventListener("click", () => {
-        const params = new URLSearchParams();
-        if (state.search) params.set("search", state.search);
-        if (state.cuisine && state.cuisine !== "全部") params.set("cuisine", state.cuisine);
-        window.location.href = "/api/download?" + params.toString();
-    });
-
-    // 分页按钮
-    document.getElementById("prev-page").addEventListener("click", () => {
-        if (state.page > 1) {
-            state.page--;
-            loadTable();
-        }
-    });
-    document.getElementById("next-page").addEventListener("click", () => {
-        state.page++;
-        loadTable();
-    });
-
-    // ============ 移动端侧边栏抽屉 ============
-    const menuToggle = document.getElementById("menu-toggle");
-    const sidebar = document.querySelector(".sidebar");
-    const backdrop = document.getElementById("sidebar-backdrop");
-
-    function openSidebar() {
-        sidebar.classList.add("open");
-        backdrop.classList.add("show");
-        menuToggle.textContent = "✕";
-    }
-    function closeSidebar() {
-        sidebar.classList.remove("open");
-        backdrop.classList.remove("show");
-        menuToggle.textContent = "☰";
-    }
-    function toggleSidebar() {
-        if (sidebar.classList.contains("open")) {
-            closeSidebar();
-        } else {
-            openSidebar();
-        }
-    }
-
-    if (menuToggle) menuToggle.addEventListener("click", toggleSidebar);
-    if (backdrop) backdrop.addEventListener("click", closeSidebar);
-
-    // 窗口放大到桌面尺寸时自动关闭抽屉
-    window.addEventListener("resize", () => {
-        if (window.innerWidth > 768) {
-            closeSidebar();
-        }
-    });
-
-    // ESC 键关闭抽屉
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && sidebar.classList.contains("open")) {
-            closeSidebar();
-        }
+async function loadCuisineChips() {
+    const res = await fetch("/api/cuisines");
+    const cuisines = await res.json();
+    const container = document.getElementById("cuisine-chips");
+    if (!container) return;
+    container.innerHTML = "";
+    cuisines.forEach((c, i) => {
+        const chip = document.createElement("div");
+        chip.className = "chip" + (i === 0 ? " active" : "");
+        chip.textContent = c;
+        chip.addEventListener("click", () => {
+            container.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+            chip.classList.add("active");
+            filters.cuisine = c;
+        });
+        container.appendChild(chip);
     });
 }
 
+// ============ 模块1：随机推荐 ============
+async function loadRandom() {
+    const card = document.getElementById("recommend-card");
+    if (!card) return;
+    card.innerHTML = '<div class="recommend-emoji">🍽️</div><div style="color:#999;">正在挑选...</div>';
 
-// ============ 切换数据源 ============
-async function switchSource(target) {
     try {
-        const res = await fetch("/api/source", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ source: target }),
-        });
+        const res = await fetch("/api/recommend/random");
+        const data = await res.json();
+        if (!data.ok) { card.innerHTML = '<div style="color:#999;">暂无数据</div>'; return; }
+
+        const emoji = data.cuisine === "川菜" ? "🌶️" : data.cuisine === "面食" ? "🍜" : "🍚";
+        card.innerHTML = `
+            <div class="recommend-emoji">${emoji}</div>
+            <div class="recommend-dish">${data.dish}</div>
+            <div class="recommend-meta">
+                <span>🏫 ${data.canteen || ""} · ${data.window}</span>
+                <span>🍲 ${data.cuisine}</span>
+                ${data.price ? `<span>💰 ${data.price}</span>` : ""}
+            </div>
+            <div class="recommend-meta">
+                <span class="recommend-score">⭐ ${data.score}</span>
+                <span class="recommend-recommend-pct">👍 ${data.recommend_pct}% 同学推荐</span>
+            </div>
+            ${data.reason ? `<div class="recommend-reason">「${data.reason}」</div>` : ""}
+        `;
+
+        // 加个小动画
+        card.style.animation = "none";
+        void card.offsetWidth;
+        card.style.animation = "pulse 0.4s ease";
+    } catch (e) {
+        card.innerHTML = '<div style="color:red;">加载失败</div>';
+    }
+}
+
+// ============ 模块2：窗口口碑列表 + 详情 ============
+async function loadWindowList() {
+    const res = await fetch("/api/charts");
+    const data = await res.json();
+    const windows = data.window_avg || [];
+
+    const grid = document.getElementById("window-grid");
+    if (!grid) return;
+    grid.innerHTML = "";
+
+    windows.forEach(w => {
+        const card = document.createElement("div");
+        card.className = "window-card";
+        card.innerHTML = `
+            <div class="window-card-name">${w.name}</div>
+            <div class="window-card-meta">👆 点我看详情</div>
+            <div class="window-card-score">${w.value} <small>/ 5.0</small></div>
+        `;
+        card.addEventListener("click", () => openWindowDetail(w.name));
+        grid.appendChild(card);
+    });
+}
+
+async function openWindowDetail(windowName) {
+    const modal = document.getElementById("window-modal");
+    const header = document.getElementById("modal-header");
+    const body = document.getElementById("modal-body");
+    if (!modal) return;
+
+    // 先显示 loading
+    header.innerHTML = '<div style="padding:20px;color:#999;">加载中...</div>';
+    body.innerHTML = "";
+    modal.classList.add("show");
+
+    try {
+        const res = await fetch(`/api/recommend/window?window=${encodeURIComponent(windowName)}`);
         const data = await res.json();
         if (!data.ok) {
-            alert("❌ " + data.msg);
-            // 回退下拉选择
-            const sel = document.getElementById("source-select");
-            sel.value = sel.dataset.prev || "mock";
+            header.innerHTML = `<div style="color:red;">${data.msg || "加载失败"}</div>`;
             return;
         }
 
-        state.dataSource = data.data_source;
-        document.getElementById("data-source-badge").textContent = "📊 " + data.data_source;
-        document.getElementById("header-date").textContent = data.data_date;
+        // Header
+        header.innerHTML = `
+            <div class="modal-window-score">${data.overall_score}<small style="font-size:1rem;color:#ccc;"> / 5</small></div>
+            <div class="modal-window-name">${data.window}</div>
+            <div class="modal-window-meta">${data.canteen} · ${data.total_count} 条评价</div>
+        `;
 
-        // 重置筛选 + 刷新
-        state.search = "";
-        state.cuisine = "全部";
-        state.page = 1;
-        const sel = document.getElementById("source-select");
-        sel.dataset.prev = target;
+        // Body
+        let html = "";
 
-        await loadCuisines();
-        await loadAllData();
-    } catch (err) {
-        alert("切换失败: " + err.message);
+        // 维度评分条
+        if (Object.keys(data.dim_scores || {}).length > 0) {
+            html += `<div style="font-weight:600;margin-bottom:10px;color:#333;">🏷️ 各维度评分</div>`;
+            Object.entries(data.dim_scores).forEach(([dim, score]) => {
+                const pct = ((score / 5) * 100).toFixed(0);
+                const cls = score >= 4 ? "dim-good" : score >= 3 ? "dim-mid" : "dim-bad";
+                html += `
+                    <div class="dim-row">
+                        <div class="dim-label">${dim}</div>
+                        <div class="dim-bar-wrap"><div class="dim-bar ${cls}" style="width:${pct}%"></div></div>
+                        <div class="dim-score">${score}</div>
+                    </div>
+                `;
+            });
+            html += `<div style="height:16px;"></div>`;
+        }
+
+        // 推荐菜品
+        if (data.top_dishes && data.top_dishes.length > 0) {
+            html += `<div style="font-weight:600;margin-bottom:10px;color:#333;">🥇 推荐菜品 TOP ${data.top_dishes.length}</div>`;
+            data.top_dishes.forEach((d, i) => {
+                const rankIcon = ["🥇", "🥈", "🥉"][i] || "🍽️";
+                html += `
+                    <div class="dish-item">
+                        <div class="dish-item-name">${rankIcon} ${d.name}</div>
+                        <div class="dish-item-info">⭐${d.score} ${d.price || ""}</div>
+                    </div>
+                `;
+            });
+            html += `<div style="height:16px;"></div>`;
+        }
+
+        // 同学反馈问题
+        if (data.problems && data.problems.length > 0) {
+            html += `<div style="font-weight:600;margin-bottom:10px;color:#333;">⚠️ 同学反馈较多的问题</div>`;
+            html += `<div>${data.problems.map(p => `<span class="problem-tag">${p}</span>`).join("")}</div>`;
+            html += `<div style="height:16px;"></div>`;
+        }
+
+        // 所有评价明细
+        if (data.all_reviews && data.all_reviews.length > 0) {
+            html += `<div style="font-weight:600;margin-bottom:10px;color:#333;">📋 全部评价 (${data.all_reviews.length} 条)</div>`;
+            html += `<div style="max-height:260px;overflow-y:auto;border:1px solid #f0f0f0;border-radius:10px;">`;
+            data.all_reviews.forEach(r => {
+                const scoreColor = r.score >= 4 ? "#6AB04C" : r.score >= 3 ? "#FFB347" : "#E85D75";
+                html += `
+                    <div style="padding:10px 12px;border-bottom:1px solid #f5f5f5;font-size:0.85rem;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                            <div style="font-weight:600;color:#333;">${r.dish || "（综合）"}</div>
+                            <div>
+                                <span style="color:${scoreColor};font-weight:700;">⭐ ${r.score}</span>
+                                <span style="color:#999;margin-left:8px;">${r.price}</span>
+                            </div>
+                        </div>
+                        ${r.comment ? `<div style="color:#666;font-size:0.82rem;margin-bottom:4px;">${r.comment}</div>` : ""}
+                        <div style="color:#bbb;font-size:0.75rem;">📅 ${r.date}</div>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+        }
+
+        body.innerHTML = html;
+    } catch (e) {
+        header.innerHTML = `<div style="color:red;">加载失败: ${e.message}</div>`;
     }
 }
 
+// ============ 模块3：条件筛选 ============
+async function loadSearchResults() {
+    const list = document.getElementById("result-list");
+    if (!list) return;
+    list.innerHTML = '<div class="empty-state">🔍 正在搜索...</div>';
 
-// ============ 菜系类型筛选标签 ============
-async function loadCuisines() {
-    const res = await fetch("/api/cuisines");
-    const cuisines = await res.json();
-
-    const container = document.getElementById("cuisine-tags");
-    container.innerHTML = "";
-    cuisines.forEach(c => {
-        const tag = document.createElement("div");
-        tag.className = "filter-tag" + (c === state.cuisine ? " active" : "");
-        tag.textContent = c;
-        tag.onclick = async () => {
-            closeSidebarIfMobile();
-            state.cuisine = c;
-            state.page = 1;
-            // 更新标签样式
-            container.querySelectorAll(".filter-tag").forEach(t => t.classList.remove("active"));
-            tag.classList.add("active");
-            await loadAllData();
-        };
-        container.appendChild(tag);
-    });
-}
-
-
-// ============ 加载所有数据 ============
-async function loadAllData() {
-    // 并行请求 stats 和 charts
     const params = new URLSearchParams();
-    if (state.search) params.set("search", state.search);
-    if (state.cuisine && state.cuisine !== "全部") params.set("cuisine", state.cuisine);
+    if (filters.min_price != null) params.set("min_price", filters.min_price);
+    if (filters.max_price != null) params.set("max_price", filters.max_price);
+    if (filters.cuisine && filters.cuisine !== "全部") params.set("cuisine", filters.cuisine);
+    if (filters.preference) params.set("preference", filters.preference);
 
-    const [statsRes, chartsRes] = await Promise.all([
-        fetch("/api/stats?" + params.toString()),
-        fetch("/api/charts?" + params.toString()),
-    ]);
+    try {
+        const res = await fetch("/api/recommend/search?" + params.toString());
+        const data = await res.json();
 
-    const stats = await statsRes.json();
-    const chartsData = await chartsRes.json();
+        if (!data.ok || !data.items || data.items.length === 0) {
+            list.innerHTML = '<div class="empty-state">😢 没找到符合条件的，试试放宽条件</div>';
+            return;
+        }
 
-    renderStats(stats);
-    renderCharts(chartsData);
-    await loadTable();
-}
-
-
-// ============ 渲染统计卡片 ============
-function renderStats(data) {
-    document.getElementById("stat-total").textContent = data.total;
-    document.getElementById("stat-avg").textContent = data.avg_score;
-    document.getElementById("stat-best-name").textContent = data.best_window.name;
-    document.getElementById("stat-best-score").textContent = data.best_window.score;
-    const bestDelta = document.getElementById("stat-best-delta");
-    bestDelta.textContent = "(" + (data.score_delta_best >= 0 ? "+" : "") + data.score_delta_best + ")";
-
-    document.getElementById("stat-worst-name").textContent = data.worst_window.name;
-    document.getElementById("stat-worst-score").textContent = data.worst_window.score;
-    const worstDelta = document.getElementById("stat-worst-delta");
-    worstDelta.textContent = "(" + (data.score_delta_worst >= 0 ? "+" : "") + data.score_delta_worst + ")";
-}
-
-
-// ============ 渲染所有图表 ============
-function renderCharts(data) {
-    renderWindowAvg(data.window_avg);
-    renderScoreDist(data.score_dist);
-    renderWindowRank(data.window_rank);
-    renderCuisineScore(data.cuisine_score);
-    renderPriceScatter(data.price_scatter);
-    renderWordCloud(data.word_cloud);
-}
-
-// 各窗口平均分柱状图
-function renderWindowAvg(data) {
-    const chart = charts["chart-window-avg"];
-    chart.setOption({
-        color: COLORS,
-        tooltip: { trigger: "axis", formatter: "{b}<br/>平均分: {c}" },
-        grid: { left: 80, right: 20, top: 20, bottom: 30 },
-        xAxis: {
-            type: "value",
-            min: 2, max: 5,
-            axisLabel: { fontFamily: "Microsoft YaHei" },
-        },
-        yAxis: {
-            type: "category",
-            data: data.map(d => d.name).reverse(),
-            axisLabel: { fontFamily: "Microsoft YaHei" },
-        },
-        series: [{
-            type: "bar",
-            data: data.map(d => d.value).reverse(),
-            barWidth: "55%",
-            itemStyle: {
-                borderRadius: [0, 6, 6, 0],
-                color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-                    { offset: 0, color: "#FFB347" },
-                    { offset: 1, color: "#FF6B35" },
-                ]),
-            },
-            label: {
-                show: true,
-                position: "right",
-                formatter: "{c}",
-                fontFamily: "Microsoft YaHei",
-            },
-        }],
-        animationDuration: 800,
-    }, true);
-}
-
-// 评分分布饼图
-function renderScoreDist(data) {
-    const chart = charts["chart-score-dist"];
-    chart.setOption({
-        tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
-        legend: { bottom: 0, fontFamily: "Microsoft YaHei" },
-        color: ["#FF6B35", "#FFB347", "#FFD700", "#E85D75", "#6AB04C"],
-        series: [{
-            type: "pie",
-            radius: ["45%", "70%"],
-            center: ["50%", "45%"],
-            avoidLabelOverlap: false,
-            itemStyle: {
-                borderRadius: 6,
-                borderColor: "#fff",
-                borderWidth: 2,
-            },
-            label: { fontFamily: "Microsoft YaHei" },
-            data: data,
-        }],
-        animationDuration: 800,
-    }, true);
-}
-
-// 窗口热度排行
-function renderWindowRank(data) {
-    const chart = charts["chart-window-rank"];
-    chart.setOption({
-        color: [COLORS[2]],
-        tooltip: { trigger: "axis", formatter: "{b}<br/>评价数: {c}" },
-        grid: { left: 110, right: 30, top: 10, bottom: 30 },
-        xAxis: { type: "value", axisLabel: { fontFamily: "Microsoft YaHei" } },
-        yAxis: {
-            type: "category",
-            data: data.map(d => d.name).reverse(),
-            axisLabel: { fontFamily: "Microsoft YaHei" },
-        },
-        series: [{
-            type: "bar",
-            data: data.map(d => d.value).reverse(),
-            barWidth: "55%",
-            itemStyle: {
-                borderRadius: [0, 6, 6, 0],
-                color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-                    { offset: 0, color: "#FFD700" },
-                    { offset: 1, color: "#FFB347" },
-                ]),
-            },
-            label: {
-                show: true,
-                position: "right",
-                fontFamily: "Microsoft YaHei",
-            },
-        }],
-        animationDuration: 800,
-    }, true);
-}
-
-// 菜系类型平均分
-function renderCuisineScore(data) {
-    const chart = charts["chart-cuisine-score"];
-    chart.setOption({
-        color: COLORS,
-        tooltip: { trigger: "axis", formatter: "{b}<br/>平均分: {c}" },
-        grid: { left: 50, right: 20, top: 30, bottom: 40 },
-        xAxis: {
-            type: "category",
-            data: data.map(d => d.name),
-            axisLabel: { fontFamily: "Microsoft YaHei", interval: 0 },
-        },
-        yAxis: { type: "value", min: 3, max: 5, axisLabel: { fontFamily: "Microsoft YaHei" } },
-        series: [{
-            type: "bar",
-            data: data.map(d => d.value),
-            barWidth: "50%",
-            itemStyle: {
-                borderRadius: [6, 6, 0, 0],
-            },
-            label: {
-                show: true,
-                position: "top",
-                formatter: "{c}",
-                fontFamily: "Microsoft YaHei",
-            },
-        }],
-        animationDuration: 800,
-    }, true);
-}
-
-// 价格 vs 评分散点图
-function renderPriceScatter(data) {
-    const chart = charts["chart-price-scatter"];
-    const series = data.data.map((s, i) => ({
-        name: s.name,
-        type: "scatter",
-        symbolSize: 12,
-        data: s.data,
-        color: COLORS[i % COLORS.length],
-    }));
-
-    chart.setOption({
-        tooltip: {
-            trigger: "item",
-            formatter: (p) => `价格: ${p.value[0]}元<br/>评分: ${p.value[1]}`,
-        },
-        legend: { bottom: 0, fontFamily: "Microsoft YaHei" },
-        grid: { left: 50, right: 20, top: 30, bottom: 50 },
-        xAxis: {
-            type: "value",
-            name: "价格(元)",
-            nameTextStyle: { fontFamily: "Microsoft YaHei" },
-            axisLabel: { fontFamily: "Microsoft YaHei" },
-        },
-        yAxis: {
-            type: "value",
-            name: "评分",
-            min: 1, max: 5,
-            nameTextStyle: { fontFamily: "Microsoft YaHei" },
-            axisLabel: { fontFamily: "Microsoft YaHei" },
-        },
-        series: series,
-        animationDuration: 800,
-    }, true);
-}
-
-// 词云
-function renderWordCloud(data) {
-    const chart = charts["chart-wordcloud"];
-    if (!data || data.length === 0) {
-        chart.clear();
-        return;
+        list.innerHTML = "";
+        data.items.forEach(item => {
+            const div = document.createElement("div");
+            div.className = "result-item";
+            div.innerHTML = `
+                <div class="result-item-main">
+                    <div class="result-item-dish">${item.dish}</div>
+                    <div class="result-item-window">📍 ${item.window} · ${item.cuisine} · ${item.count} 人评价</div>
+                </div>
+                <div class="result-item-right">
+                    <div class="result-item-score">⭐ ${item.score}</div>
+                    <div class="result-item-price">${item.price}</div>
+                </div>
+            `;
+            div.addEventListener("click", () => openWindowDetail(item.window));
+            list.appendChild(div);
+        });
+    } catch (e) {
+        list.innerHTML = '<div class="empty-state">❌ 搜索失败</div>';
     }
-
-    chart.setOption({
-        tooltip: { show: true, fontFamily: "Microsoft YaHei" },
-        series: [{
-            type: "wordCloud",
-            gridSize: 8,
-            sizeRange: [14, 60],
-            rotationRange: [-45, 45],
-            shape: "circle",
-            drawOutOfBound: false,
-            textStyle: {
-                fontFamily: "Microsoft YaHei",
-                fontWeight: "bold",
-                color: () => {
-                    return COLORS[Math.floor(Math.random() * COLORS.length)];
-                },
-            },
-            emphasis: {
-                textStyle: { shadowBlur: 10, shadowColor: "#333" },
-            },
-            data: data,
-        }],
-        animationDuration: 1200,
-    }, true);
 }
 
-
-// ============ 渲染数据表格 ============
-async function loadTable() {
-    const params = new URLSearchParams();
-    if (state.search) params.set("search", state.search);
-    if (state.cuisine && state.cuisine !== "全部") params.set("cuisine", state.cuisine);
-    params.set("page", state.page);
-    params.set("size", state.size);
-
-    const res = await fetch("/api/table?" + params.toString());
+// ============ 底部迷你图表 ============
+async function loadMiniCharts() {
+    const res = await fetch("/api/charts");
     const data = await res.json();
 
-    // 更新分页信息
-    document.getElementById("table-total").textContent = data.total;
-    document.getElementById("current-page").textContent = data.page;
-    document.getElementById("total-pages").textContent = data.pages;
-    document.getElementById("prev-page").disabled = state.page <= 1;
-    document.getElementById("next-page").disabled = state.page >= data.pages;
+    if (data.score_dist && data.score_dist.length > 0) {
+        miniCharts.scoreDist.setOption({
+            title: { text: "评分分布", left: "center", textStyle: { fontSize: 12, fontFamily: "Microsoft YaHei" } },
+            tooltip: { trigger: "item" },
+            color: ["#FF6B35", "#FFB347", "#FFD700", "#E85D75", "#6AB04C"],
+            series: [{
+                type: "pie", radius: ["40%", "65%"], center: ["50%", "58%"],
+                itemStyle: { borderRadius: 4, borderColor: "#fff", borderWidth: 1 },
+                label: { show: false },
+                data: data.score_dist,
+            }],
+        });
+    }
 
-    // 填充表格
-    const tbody = document.getElementById("table-body");
-    tbody.innerHTML = "";
-
-    data.rows.forEach(row => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${row["窗口名"] ?? "-"}</td>
-            <td>${row["菜品名"] ?? "-"}</td>
-            <td>${row["菜系类型"] ?? "-"}</td>
-            <td>${row["评分"] ?? "-"}</td>
-            <td>${row["价格"] ?? "-"}</td>
-            <td title="${row["评价文字"] ?? ""}">${row["评价文字"] ?? "-"}</td>
-            <td>${row["日期"] ?? "-"}</td>
-        `;
-        tbody.appendChild(tr);
-    });
+    if (data.cuisine_score && data.cuisine_score.length > 0) {
+        miniCharts.cuisine.setOption({
+            title: { text: "菜系平均分", left: "center", textStyle: { fontSize: 12, fontFamily: "Microsoft YaHei" } },
+            tooltip: { trigger: "axis" },
+            grid: { left: 40, right: 10, top: 30, bottom: 30 },
+            xAxis: { type: "category", data: data.cuisine_score.map(d => d.name), axisLabel: { fontSize: 10, fontFamily: "Microsoft YaHei" } },
+            yAxis: { type: "value", min: 3, max: 5, axisLabel: { fontSize: 10 } },
+            series: [{
+                type: "bar",
+                data: data.cuisine_score.map(d => d.value),
+                itemStyle: {
+                    borderRadius: [4, 4, 0, 0],
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: "#FF6B35" }, { offset: 1, color: "#FFB347" },
+                    ]),
+                },
+            }],
+        });
+    }
 }
