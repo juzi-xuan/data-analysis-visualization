@@ -303,6 +303,90 @@
 
         .empty-state { text-align: center; padding: 40px; color: #bbb; }
 
+        /* ===== 模块2.5：餐品人气榜 ===== */
+        .popularity-card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 2px solid #FFE4D6;
+        }
+        .popularity-chart {
+            width: 100%;
+            height: 320px;
+        }
+        .popularity-list {
+            display: none; /* JS 控制显示 */
+        }
+        .popularity-list.show {
+            display: block;
+        }
+        .popularity-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 14px;
+            background: #FAFAFA;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .popularity-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 10px rgba(255, 107, 53, 0.15);
+        }
+        /* 条形进度条背景（用伪元素实现渐变条，从左往右） */
+        .popularity-item::after {
+            content: "";
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: var(--bar-width, 0%);
+            background: linear-gradient(90deg, var(--bar-color, #FFE4D6), transparent);
+            border-radius: 10px 0 0 10px;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.6;
+        }
+        .popularity-rank {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #E8E8E8;
+            color: #999;
+            font-weight: 700;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 14px;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1;
+        }
+        .popularity-rank.top1 { background: linear-gradient(135deg, #FFD700, #FFA500); color: #fff; box-shadow: 0 2px 6px rgba(255, 165, 0, 0.4); }
+        .popularity-rank.top2 { background: linear-gradient(135deg, #C0C0C0, #A0A0A0); color: #fff; box-shadow: 0 2px 6px rgba(160, 160, 160, 0.4); }
+        .popularity-rank.top3 { background: linear-gradient(135deg, #CD7F32, #B87333); color: #fff; box-shadow: 0 2px 6px rgba(184, 115, 51, 0.4); }
+        .popularity-info { flex: 1; position: relative; z-index: 1; }
+        .popularity-name { font-weight: 700; color: #333; font-size: 0.95rem; }
+        .popularity-window { font-size: 0.8rem; color: #999; margin-top: 2px; white-space: normal; }
+        .popularity-votes {
+            color: #FF6B35;
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-left: 12px;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1;
+        }
+        .popularity-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #bbb;
+        }
+        .popularity-empty .emoji { font-size: 2.5rem; margin-bottom: 10px; }
+        .popularity-empty .tip { font-size: 0.85rem; color: #ccc; margin-top: 6px; }
+
         /* ===== 页面底部：简洁版图表 ===== */
         .mini-charts {
             background: #fff;
@@ -365,7 +449,18 @@
         </div>
     </section>
 
-    <!-- 模块2：窗口口碑 -->
+    <!-- 🏆 模块2：餐品人气榜 -->
+    <section class="section">
+        <h2 class="section-title">🏆 餐品人气榜（同学投票 TOP 10）</h2>
+        <div class="popularity-card" id="popularity-card">
+            <div class="popularity-chart" id="popularity-chart"></div>
+            <div class="popularity-list" id="popularity-list">
+                <!-- JS 动态生成列表（作为图表的数据备份） -->
+            </div>
+        </div>
+    </section>
+
+    <!-- 模块2.5：窗口口碑 -->
     <section class="section">
         <h2 class="section-title">🔥 窗口口碑（怕踩雷？点它看详情）</h2>
         <div class="window-search">

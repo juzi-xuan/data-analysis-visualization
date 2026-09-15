@@ -199,6 +199,32 @@
     opacity: 1;
 }
 
+/* 无图片卡片的顶部占位（简洁替代图片框） */
+.window-card__no-image-top {
+    position: relative;
+    height: 80px;
+    background: linear-gradient(135deg, #FFE4D6, #FFF5EE);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid #f0e8dd;
+}
+
+.window-card__no-image-emoji {
+    font-size: 32px;
+    opacity: 0.7;
+}
+
+/* 自定义卡片的地址展示 */
+.custom-card-address {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 12px;
+    padding: 6px 10px;
+    background: #faf7f3;
+    border-radius: 8px;
+}
+
 /* 卡片内容区 */
 .window-card__body {
     padding: 20px;
@@ -672,13 +698,160 @@
 }
 
 /* 响应式 */
-@media (max-width: 900px) {
+@media (max-width: 500px) {
     .window-cards {
         grid-template-columns: 1fr;
     }
     .window-card__image-wrap {
         height: 150px;
     }
+}
+
+/* ========== "其他" tab 添加按钮条 ========== */
+.custom-add-bar {
+    max-width: 1100px;
+    margin: -8px auto 16px;
+    padding: 0 24px;
+    text-align: center;
+    position: relative;
+    z-index: 11;
+}
+
+/* ========== 添加餐品弹窗 ========== */
+.modal-content--custom {
+    max-width: 480px;
+    padding: 28px 32px;
+    text-align: left;
+    position: relative;
+}
+
+.modal-content--custom h2 {
+    font-size: 20px;
+    color: #333;
+    margin-bottom: 6px;
+}
+
+.custom-form-tip {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 20px;
+}
+
+.custom-form-row {
+    margin-bottom: 14px;
+}
+
+.custom-form-row label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 6px;
+}
+
+.custom-form-row label .required {
+    color: #E85D75;
+}
+
+.custom-form-row input[type="text"],
+.custom-form-row select,
+.custom-form-row textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #e0d5c8;
+    border-radius: 10px;
+    font-size: 13px;
+    font-family: inherit;
+    box-sizing: border-box;
+    background: #fafaf8;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.custom-form-row input[type="text"]:focus,
+.custom-form-row select:focus,
+.custom-form-row textarea:focus {
+    outline: none;
+    border-color: #FF6B35;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.12);
+    background: #fff;
+}
+
+.custom-form-row textarea {
+    min-height: 60px;
+    resize: vertical;
+}
+
+.custom-image-upload input[type="file"] {
+    font-size: 12px;
+    padding: 6px;
+    width: 100%;
+    border: 1px dashed #d9cbc0;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #faf7f3;
+}
+
+.custom-image-preview {
+    position: relative;
+    margin-top: 10px;
+    width: 100%;
+    max-height: 200px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #e0d5c8;
+}
+
+.custom-image-preview img {
+    width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+    display: block;
+    background: #fafaf8;
+}
+
+.custom-image-remove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.custom-form-section-title {
+    font-size: 12px;
+    color: #aaa;
+    margin: 12px 0 8px;
+    padding-top: 12px;
+    border-top: 1px dashed #e0d5c8;
+}
+
+.custom-form-row--rating {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.custom-form-row--vote label {
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.custom-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #e8e0d5;
 }
 
 @media (max-width: 500px) {
@@ -952,6 +1125,14 @@
     font-size: 12px;
     font-weight: 600;
     color: #555;
+    gap: 8px;
+}
+
+.dish-input-row__actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
 }
 
 .dish-input-row__remove {
@@ -974,6 +1155,62 @@
 .dish-input-row__remove:hover {
     background: #FF6B35;
     color: #fff;
+}
+
+/* ===== 投票按钮 ===== */
+.dish-vote-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1.5px solid #e0d5c8;
+    border-radius: 12px;
+    background: #fff;
+    color: #999;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+.dish-vote-btn:hover {
+    border-color: #FFB347;
+    color: #FF6B35;
+    background: #FFF8F0;
+    transform: translateY(-1px);
+}
+
+.dish-vote-btn:active {
+    transform: scale(0.95);
+}
+
+.dish-vote-btn__icon {
+    font-size: 12px;
+}
+
+/* 投票后状态 */
+.dish-vote-btn.voted {
+    border-color: #FF6B35;
+    background: linear-gradient(135deg, #FF6B35, #FFB347);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.35);
+}
+
+.dish-vote-btn.voted:hover {
+    background: linear-gradient(135deg, #E55A2B, #FF9F30);
+    border-color: #E55A2B;
+}
+
+.dish-vote-btn.voted .dish-vote-btn__icon {
+    animation: vote-pop 0.4s ease;
+}
+
+@keyframes vote-pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.5); }
+    100% { transform: scale(1); }
 }
 
 .dish-input-row textarea {

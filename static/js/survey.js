@@ -68,46 +68,79 @@ function renderWindowCards() {
     const windows = getFilteredWindows();
 
     if (windows.length === 0) {
-        container.innerHTML =
-            '<p style="text-align:center;color:#999;padding:60px;">这个食堂暂时还没有窗口 🥲</p>';
+        container.innerHTML = currentCanteen === "其他"
+            ? '<p style="text-align:center;color:#999;padding:60px;">还没有人添加过餐品哦，点上面的按钮添加第一个吧 🎉</p>'
+            : '<p style="text-align:center;color:#999;padding:60px;">这个食堂暂时还没有窗口 🥲</p>';
         return;
     }
 
     windows.forEach((window, idx) => {
-        const state = surveyState[window.name];
+        const state = surveyState[window.name] || (surveyState[window.name] = {
+            score: 0, tags: [], comment: "", dishEvaluations: [],
+        });
         const card = document.createElement("div");
         card.className = "window-card" + (state.score > 0 ? " evaluated" : "");
         card.dataset.window = window.name;
 
-        // 食堂标签（一食堂/二食堂）
+        // 食堂标签
         const canteenTag = window.canteen
             ? `<span class="window-card__canteen-tag">${window.canteen}</span>`
             : "";
 
-        // 菜品选择器区域（只有配了 dishes 才渲染）
-        const hasDishes = window.dishes && window.dishes.length > 0;
-        const dishSelectorHTML = hasDishes ? renderDishSelector(window, state) : "";
+        // 自定义窗口的餐品名标签
+        const dishBadge = window.is_custom && window.dish_name
+            ? `<span class="window-card__canteen-tag" style="top:32px;background:rgba(255,107,53,0.85);">🍜 ${escapeHTML(window.dish_name)}</span>`
+            : "";
+
+        // 图片区（自定义窗口如果没有图片，就不渲染图片框）
+        let imageHTML = "";
+        if (window.image && window.image.length > 0) {
+            imageHTML = `
+                <div class="window-card__image-wrap">
+                    <img class="window-card__image"
+                         src="${window.image}"
+                         alt="${window.name}"
+                         data-full="${window.image}"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                    <div class="window-card__emoji-fallback" style="display:none;">🍜</div>
+                    <span class="window-card__image-hint">🔍 点击放大</span>
+                    ${canteenTag}
+                    ${dishBadge}
+                </div>`;
+        } else {
+            // 无图片：用一个简洁的标题区替代
+            imageHTML = `
+                <div class="window-card__no-image-top">
+                    <span class="window-card__no-image-emoji">🏪</span>
+                    ${canteenTag}
+                    ${dishBadge}
+                </div>`;
+        }
+
+        // 菜品选择器区域（自定义窗口一般没有 CSV 菜品，跳过）
+        let dishSelectorHTML = "";
+        if (!window.is_custom) {
+            const hasDishes = window.dishes && window.dishes.length > 0;
+            dishSelectorHTML = hasDishes ? renderDishSelector(window, state) : "";
+        }
+
+        // 自定义窗口的地址展示
+        const addressHTML = window.is_custom && window.address
+            ? `<div class="custom-card-address">📍 ${escapeHTML(window.address)}</div>`
+            : "";
 
         card.innerHTML = `
-            <!-- 图片区 -->
-            <div class="window-card__image-wrap">
-                <img class="window-card__image"
-                     src="${window.image}"
-                     alt="${window.name}"
-                     data-full="${window.image}"
-                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-                <div class="window-card__emoji-fallback" style="display:none;">🍜</div>
-                <span class="window-card__image-hint">🔍 点击放大</span>
-                ${canteenTag}
-            </div>
+            ${imageHTML}
 
             <!-- 内容区 -->
             <div class="window-card__body">
                 <!-- 标题 -->
                 <div class="window-card__header">
                     <span class="window-card__name">${window.name}</span>
-                    <span class="window-card__cuisine">${window.cuisine}</span>
+                    <span class="window-card__cuisine">${window.cuisine || '其他'}</span>
                 </div>
+
+                ${addressHTML}
 
                 <!-- 星级评分 -->
                 <div class="rating-row">
@@ -120,7 +153,6 @@ function renderWindowCards() {
                     <span class="rating-text" data-role="rating-text">${state.score > 0 ? RATING_TEXTS[state.score - 1] : ''}</span>
                 </div>
 
-                <!-- 菜品选择器（可选区域） -->
                 ${dishSelectorHTML}
 
                 <!-- 多选标签 -->
@@ -216,14 +248,23 @@ function escapeHTML(str) {
     }[c]));
 }
 
-// 渲染单个菜品的评价输入行（带快速标签）
+// 渲染单个菜品的评价输入行（带快速标签 + 投票按钮）
 function renderDishInputRow(de, price) {
     const tags = de.tags || [];
+    const voted = de.voted === true;
     return `
         <div class="dish-input-row" data-dish="${escapeHTML(de.name)}">
             <div class="dish-input-row__label">
                 <span>📝 ${escapeHTML(de.name)}${price ? ` (¥${price})` : ''} 的评价：</span>
-                <button type="button" class="dish-input-row__remove" title="取消此菜品">✕</button>
+                <div class="dish-input-row__actions">
+                    <button type="button"
+                            class="dish-vote-btn ${voted ? 'voted' : ''}"
+                            title="${voted ? '已投过票了，点一下取消' : '投它一票！登上人气榜 🙌'}">
+                        <span class="dish-vote-btn__icon">👍</span>
+                        <span class="dish-vote-btn__text">${voted ? '已投票' : '投它一票'}</span>
+                    </button>
+                    <button type="button" class="dish-input-row__remove" title="取消此菜品">✕</button>
+                </div>
             </div>
 
             <!-- 快速标签区 -->
@@ -256,6 +297,12 @@ function bindEvents() {
             currentCanteen = tab.dataset.canteen;
             renderWindowCards();
             bindCardEvents();
+
+            // "其他" tab 显示添加按钮
+            const addBar = document.getElementById("custom-add-bar");
+            if (addBar) {
+                addBar.style.display = (currentCanteen === "其他") ? "block" : "none";
+            }
             window.scrollTo({ top: 0, behavior: "smooth" });
         });
     });
@@ -272,6 +319,9 @@ function bindEvents() {
     document.getElementById("modal-close").addEventListener("click", () => {
         document.getElementById("success-modal").classList.add("hidden");
     });
+
+    // ========== 自定义餐品弹窗交互 ==========
+    bindCustomDishModal();
 }
 
 // 卡片内部事件（每次 render 后重新绑定）
@@ -286,8 +336,8 @@ function bindCardEvents() {
         });
     });
 
-    // 星级评分 - hover 预览
-    document.querySelectorAll(".stars").forEach(starsEl => {
+    // 星级评分 - hover 预览（只给窗口卡片里的星星绑，跳过自定义弹窗里的）
+    document.querySelectorAll(".window-card .stars").forEach(starsEl => {
         starsEl.addEventListener("mouseenter", (e) => {
             const target = e.target.closest(".star");
             if (!target) return;
@@ -296,8 +346,9 @@ function bindCardEvents() {
 
         starsEl.addEventListener("mouseleave", () => {
             const windowName = starsEl.dataset.window;
-            const current = surveyState[windowName].score;
-            renderStars(starsEl, current);
+            const state = surveyState[windowName];
+            if (!state) return;
+            renderStars(starsEl, state.score);
         });
 
         starsEl.addEventListener("click", (e) => {
@@ -305,9 +356,11 @@ function bindCardEvents() {
             if (!target) return;
             const score = parseInt(target.dataset.score);
             const windowName = starsEl.dataset.window;
-            const currentScore = surveyState[windowName].score;
+            const state = surveyState[windowName];
+            if (!state) return;
+            const currentScore = state.score;
             const newScore = (currentScore === score) ? 0 : score;
-            surveyState[windowName].score = newScore;
+            state.score = newScore;
             renderStars(starsEl, newScore);
             const card = starsEl.closest(".window-card");
             if (newScore > 0) {
@@ -396,6 +449,7 @@ function bindCardEvents() {
                         price: dishInfo ? dishInfo.price : 0,
                         description: "",
                         tags: [],
+                        voted: false,
                     });
                 }
                 item.classList.add("selected");
@@ -522,6 +576,28 @@ function updateDishInputsAndCount(card, windowName) {
                 }
             });
         });
+
+        // 投票按钮点击事件（toggle）
+        inputsContainer.querySelectorAll(".dish-vote-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const row = btn.closest(".dish-input-row");
+                const dishName = row.dataset.dish;
+                const evalItem = state.dishEvaluations.find(e => e.name === dishName);
+                if (!evalItem) return;
+
+                evalItem.voted = !evalItem.voted;
+                btn.classList.toggle("voted", evalItem.voted);
+                const icon = btn.querySelector(".dish-vote-btn__icon");
+                const text = btn.querySelector(".dish-vote-btn__text");
+                if (evalItem.voted) {
+                    text.textContent = "已投票";
+                    btn.title = "已投过票了，点一下取消";
+                } else {
+                    text.textContent = "投它一票";
+                    btn.title = "投它一票！登上人气榜 🙌";
+                }
+            });
+        });
     }
 }
 
@@ -540,9 +616,13 @@ function renderStars(starsEl, score) {
         star.classList.toggle("selected", isActive);
     });
 
+    // 只有在窗口卡片里才更新旁边的文字提示（弹窗里的星星没有这个元素）
     const card = starsEl.closest(".window-card");
+    if (!card) return;
     const textEl = card.querySelector('[data-role="rating-text"]');
-    textEl.textContent = score > 0 ? RATING_TEXTS[score - 1] : "";
+    if (textEl) {
+        textEl.textContent = score > 0 ? RATING_TEXTS[score - 1] : "";
+    }
 }
 
 // ========== 重置 ==========
@@ -820,6 +900,179 @@ function startParticles() {
     modal.addEventListener("click", (e) => {
         if (e.target === modal) stopHandler();
     }, { once: true });
+}
+
+// ========== 自定义餐品弹窗 ==========
+
+let customRating = 0;
+
+function bindCustomDishModal() {
+    const modal = document.getElementById("custom-dish-modal");
+    const openBtn = document.getElementById("open-custom-form");
+    const closeBtn = document.getElementById("custom-modal-close");
+    const cancelBtn = document.getElementById("custom-cancel-btn");
+    const form = document.getElementById("custom-dish-form");
+    const fileInput = document.getElementById("custom-image-input");
+    const preview = document.getElementById("custom-image-preview");
+    const previewImg = document.getElementById("custom-preview-img");
+    const removeImgBtn = document.getElementById("custom-image-remove");
+    const starsEl = document.getElementById("custom-rating-stars");
+    const hiddenSat = document.getElementById("custom-satisfaction");
+
+    // 打开弹窗
+    if (openBtn) {
+        openBtn.addEventListener("click", () => {
+            modal.classList.remove("hidden");
+            document.body.style.overflow = "hidden";
+        });
+    }
+
+    // 关闭弹窗
+    const closeModal = () => {
+        modal.classList.add("hidden");
+        document.body.style.overflow = "";
+        form.reset();
+        customRating = 0;
+        hiddenSat.value = "0";
+        renderStars(starsEl, 0);
+        preview.style.display = "none";
+        previewImg.src = "";
+    };
+
+    if (closeBtn) closeBtn.addEventListener("click", closeModal);
+    if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+    if (modal) {
+        modal.addEventListener("click", (e) => {
+            if (e.target === modal) closeModal();
+        });
+    }
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && modal && !modal.classList.contains("hidden")) {
+            closeModal();
+        }
+    });
+
+    // 弹窗里的星星评分（hover + click）
+    if (starsEl) {
+        starsEl.addEventListener("mouseenter", (e) => {
+            const target = e.target.closest(".star");
+            if (!target) return;
+            previewStars(starsEl, parseInt(target.dataset.score));
+        });
+        starsEl.addEventListener("mouseleave", () => {
+            renderStars(starsEl, customRating);
+        });
+        starsEl.addEventListener("click", (e) => {
+            const target = e.target.closest(".star");
+            if (!target) return;
+            customRating = parseInt(target.dataset.score);
+            hiddenSat.value = customRating;
+            renderStars(starsEl, customRating);
+        });
+    }
+
+    // 图片选择 → 预览
+    if (fileInput) {
+        fileInput.addEventListener("change", () => {
+            const file = fileInput.files && fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    previewImg.src = ev.target.result;
+                    preview.style.display = "block";
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    // 移除图片
+    if (removeImgBtn) {
+        removeImgBtn.addEventListener("click", () => {
+            fileInput.value = "";
+            previewImg.src = "";
+            preview.style.display = "none";
+        });
+    }
+
+    // 表单提交（multipart/form-data）
+    if (form) {
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const storeName = form.store_name.value.trim();
+            const dishName = form.dish_name.value.trim();
+            if (!storeName || !dishName) {
+                alert("请填写店名和餐品名～");
+                return;
+            }
+
+            const submitBtn = document.getElementById("custom-submit-btn");
+            submitBtn.disabled = true;
+            submitBtn.textContent = "发布中...";
+
+            try {
+                const fd = new FormData(form);
+                // 把 hidden satisfaction value 写上（因为星星组件不自动更新 input value）
+                fd.set("satisfaction", customRating);
+
+                const resp = await fetch("/api/survey/custom_dish", {
+                    method: "POST",
+                    body: fd,
+                });
+
+                const data = await resp.json();
+
+                if (data.ok) {
+                    alert(data.msg);
+                    closeModal();
+
+                    // 重新拉取窗口列表 + 重新渲染卡片
+                    await refreshSurveyWindows();
+
+                    // 成功后自动切到"其他" tab（如果还没切过去）
+                    if (currentCanteen !== "其他") {
+                        document.querySelector('.canteen-tab[data-canteen="其他"]').click();
+                    }
+                } else {
+                    alert(data.msg || "发布失败，请稍后重试");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("网络错误，请检查连接后重试");
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "📣 发布";
+            }
+        });
+    }
+}
+
+// 重新拉取窗口列表并重新渲染（发布新餐品后调用）
+async function refreshSurveyWindows() {
+    try {
+        const resp = await fetch("/api/survey/windows");
+        const data = await resp.json();
+        WINDOWS = data.windows;
+        POSITIVE_TAGS = data.positive_tags;
+        NEGATIVE_TAGS = data.negative_tags;
+        DISH_TAGS_POSITIVE = data.dish_tags_positive || [];
+        DISH_TAGS_NEGATIVE = data.dish_tags_negative || [];
+
+        // 为新窗口初始化状态（如果还没有的话）
+        WINDOWS.forEach(w => {
+            if (!surveyState[w.name]) {
+                surveyState[w.name] = {
+                    score: 0, tags: [], comment: "", dishEvaluations: [],
+                };
+            }
+        });
+
+        renderWindowCards();
+        bindCardEvents();
+    } catch (err) {
+        console.error("刷新窗口列表失败:", err);
+    }
 }
 
 // ========== 启动 ==========

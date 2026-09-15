@@ -24,6 +24,14 @@
         <button type="button" class="canteen-tab active" data-canteen="all">🍽️ 全部食堂</button>
         <button type="button" class="canteen-tab" data-canteen="一食堂">🏫 一食堂</button>
         <button type="button" class="canteen-tab" data-canteen="二食堂">🏫 二食堂</button>
+        <button type="button" class="canteen-tab" data-canteen="其他">✨ 其他</button>
+    </div>
+
+    <!-- "其他" tab 专用：添加餐品按钮（默认隐藏，选中"其他"时显示） -->
+    <div class="custom-add-bar" id="custom-add-bar" style="display:none;">
+        <button type="button" class="btn btn-primary" id="open-custom-form">
+            ➕ 添加我喜欢的餐品
+        </button>
     </div>
 
     <!-- 问卷主内容 -->
@@ -39,6 +47,86 @@
             </div>
         </form>
     </main>
+
+    <!-- 添加餐品弹窗 -->
+    <div id="custom-dish-modal" class="modal hidden">
+        <div class="modal-content modal-content--custom">
+            <span class="img-modal__close" id="custom-modal-close">✕</span>
+            <h2>✨ 添加你喜欢的餐品</h2>
+            <p class="custom-form-tip">告诉大家还有什么好吃的！其他同学也能评价和投票 🎉</p>
+
+            <form id="custom-dish-form" enctype="multipart/form-data">
+                <div class="custom-form-row">
+                    <label>🏪 店名 <span class="required">*</span></label>
+                    <input type="text" name="store_name" required placeholder="例如：张亮麻辣烫（南门）" maxlength="50">
+                </div>
+                <div class="custom-form-row">
+                    <label>🍜 餐品名 <span class="required">*</span></label>
+                    <input type="text" name="dish_name" required placeholder="例如：招牌麻辣烫（中辣）" maxlength="50">
+                </div>
+                <div class="custom-form-row">
+                    <label>📍 地址</label>
+                    <input type="text" name="address" placeholder="（选填）方便大家找到" maxlength="100">
+                </div>
+                <div class="custom-form-row">
+                    <label>🎨 菜系类型</label>
+                    <select name="cuisine">
+                        <option value="其他">其他</option>
+                        <option value="面食">面食</option>
+                        <option value="盖浇饭">盖浇饭</option>
+                        <option value="家常菜">家常菜</option>
+                        <option value="小吃快餐">小吃快餐</option>
+                        <option value="川菜">川菜</option>
+                        <option value="湘菜">湘菜</option>
+                        <option value="粤式点心">粤式点心</option>
+                        <option value="韩式">韩式</option>
+                        <option value="饮品甜品">饮品甜品</option>
+                    </select>
+                </div>
+                <div class="custom-form-row">
+                    <label>📝 你的评价</label>
+                    <textarea name="description" placeholder="（选填）说说你为什么推荐它..." maxlength="300"></textarea>
+                </div>
+
+                <!-- 图片上传（可选） -->
+                <div class="custom-form-row">
+                    <label>📷 图片（可选）</label>
+                    <div class="custom-image-upload">
+                        <input type="file" name="image" accept="image/*" id="custom-image-input">
+                        <div class="custom-image-preview" id="custom-image-preview" style="display:none;">
+                            <img id="custom-preview-img" alt="预览">
+                            <button type="button" id="custom-image-remove" class="custom-image-remove">✕ 移除</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 初始评价（可选，发布后你也可以评价它） -->
+                <div class="custom-form-section-title">你也可以给自己添加的餐品打个分（选填）</div>
+                <div class="custom-form-row custom-form-row--rating">
+                    <span class="rating-label">满意度：</span>
+                    <div class="stars" id="custom-rating-stars" data-window="__custom__">
+                        <span class="star" data-score="1">★</span>
+                        <span class="star" data-score="2">★</span>
+                        <span class="star" data-score="3">★</span>
+                        <span class="star" data-score="4">★</span>
+                        <span class="star" data-score="5">★</span>
+                    </div>
+                    <input type="hidden" name="satisfaction" id="custom-satisfaction" value="0">
+                </div>
+                <div class="custom-form-row custom-form-row--vote">
+                    <label>
+                        <input type="checkbox" name="voted" value="true">
+                        👍 投它一票，帮它上人气榜
+                    </label>
+                </div>
+
+                <div class="custom-form-actions">
+                    <button type="button" id="custom-cancel-btn" class="btn btn-secondary">取消</button>
+                    <button type="submit" id="custom-submit-btn" class="btn btn-primary">📣 发布</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- 提交成功弹窗 -->
     <div id="success-modal" class="modal hidden">
@@ -67,5 +155,6 @@
     </div>
 
     <script src="/static/js/survey.js"></script>
+    <script src="/static/js/auto-fill.js"></script>
 </body>
 </html>

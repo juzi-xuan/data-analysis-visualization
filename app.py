@@ -5,6 +5,7 @@
 """
 
 import io
+import os
 import sqlite3
 import time
 import uuid
@@ -27,6 +28,7 @@ from utils.data_loader import (
     compute_canteen_compare,
     compute_cuisine_score,
     compute_data_date,
+    compute_popularity_ranking,
     compute_price_scatter,
     compute_recommend_random,
     compute_score_dist,
@@ -41,6 +43,7 @@ from utils.data_loader import (
     compute_window_rank,
     ensure_survey_db,
     enrich_windows_with_dishes,
+    load_custom_dishes,
     load_data,
     load_survey_data,
     save_survey_responses,
@@ -225,6 +228,20 @@ def api_recommend_search():
     return jsonify({"ok": True, "count": len(result), "items": result})
 
 
+@app.route("/api/popularity")
+def api_popularity():
+    """🏆 餐品人气榜（按投票数排名）"""
+    df = get_df()
+    top_n = request.args.get("top_n", 15, type=int)
+    ranking = compute_popularity_ranking(df, top_n=top_n)
+    total_votes = sum(item["votes"] for item in ranking)
+    return jsonify({
+        "ok": True,
+        "items": ranking,
+        "total_votes": int(df["是否投票"].sum()) if "是否投票" in df.columns else 0,
+    })
+
+
 @app.route("/api/charts")
 def api_charts():
     """所有图表数据（一次请求返回全部 6 张图）"""
@@ -341,15 +358,163 @@ def api_download():
 
 @app.route("/api/survey/windows")
 def api_survey_windows():
-    """返回窗口配置（含 dishes）+ 预设标签"""
+    """返回窗口配置（含 dishes）+ 预设标签 + 自定义餐品"""
     # enrich_windows_with_dishes 会读取 CSV 并给匹配的窗口加上 dishes 数组
     enriched = enrich_windows_with_dishes(list(WINDOWS))
+
+    # 把自定义餐品也加入（作为"其他"食堂的窗口）
+    custom_dishes = load_custom_dishes()
+    custom_windows = []
+    for cd in custom_dishes:
+        custom_windows.append({
+            "name": cd["store_name"],
+            "canteen": "其他",
+            "cuisine": cd["cuisine"],
+            "image": cd["image_path"] or "",
+            "description": cd["description"],
+            "address": cd["address"],
+            "dish_name": cd["dish_name"],
+            "is_custom": True,
+        })
+
     return jsonify({
-        "windows": enriched,
+        "windows": enriched + custom_windows,
+        "custom_dishes": custom_dishes,
         "positive_tags": POSITIVE_TAGS,
         "negative_tags": NEGATIVE_TAGS,
         "dish_tags_positive": DISH_TAGS_POSITIVE,
         "dish_tags_negative": DISH_TAGS_NEGATIVE,
+    })
+
+
+# ============================================================
+# 自定义餐品 API（用户添加自己喜欢的餐品）
+# ============================================================
+
+# 自定义餐品图片保存目录
+_CUSTOM_IMAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "images", "custom")
+ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+
+
+@app.route("/api/survey/custom_dish", methods=["POST"])
+def api_survey_custom_dish():
+    """
+    添加自定义餐品（multipart/form-data，图片可选）
+    同时如果填了满意度评分，会自动存一条初始评价到 survey_responses
+    """
+    global _source, _data_source_label
+
+    # 确保图片目录存在
+    os.makedirs(_CUSTOM_IMAGE_DIR, exist_ok=True)
+
+    # 支持 JSON 和 form-data 两种提交方式
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+    else:
+        data = request.form.to_dict()
+
+    store_name = (data.get("store_name") or "").strip()
+    dish_name = (data.get("dish_name") or "").strip()
+
+    if not store_name or not dish_name:
+        return jsonify({"ok": False, "msg": "请填写店名和餐品名"}), 400
+
+    address = (data.get("address") or "").strip()
+    cuisine = (data.get("cuisine") or "其他").strip()
+    description = (data.get("description") or "").strip()
+    satisfaction = data.get("satisfaction")
+
+    # 处理满意度
+    try:
+        satisfaction = int(satisfaction) if satisfaction else 0
+        if satisfaction and not (1 <= satisfaction <= 5):
+            satisfaction = 0
+    except (ValueError, TypeError):
+        satisfaction = 0
+
+    # 处理图片（可选）
+    image_path = ""
+    if "image" in request.files:
+        image_file = request.files["image"]
+        if image_file and image_file.filename:
+            ext = os.path.splitext(image_file.filename)[1].lower()
+            if ext in ALLOWED_IMAGE_EXT:
+                filename = f"custom_{uuid.uuid4().hex[:12]}{ext}"
+                save_path = os.path.join(_CUSTOM_IMAGE_DIR, filename)
+                image_file.save(save_path)
+                image_path = f"/static/images/custom/{filename}"
+
+    submitter_id = session.get("submitter_id")
+    if not submitter_id:
+        submitter_id = uuid.uuid4().hex[:12]
+        session["submitter_id"] = submitter_id
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # 存到 custom_dishes 表
+    ensure_survey_db()
+    conn = sqlite3.connect(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "survey.db")
+    )
+    try:
+        # 检查是否已存在相同店名+餐品
+        existing = conn.execute(
+            "SELECT id FROM custom_dishes WHERE store_name = ? AND dish_name = ?",
+            (store_name, dish_name),
+        ).fetchone()
+        if existing:
+            conn.close()
+            return jsonify({"ok": False, "msg": "这家店这个餐品已经有人添加过啦，可以直接去评价～"}), 400
+
+        conn.execute(
+            "INSERT INTO custom_dishes "
+            "(store_name, address, dish_name, cuisine, image_path, description, submitter_id, submit_date) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (store_name, address, dish_name, cuisine, image_path, description, submitter_id, now),
+        )
+        conn.commit()
+        new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    finally:
+        conn.close()
+
+    # 如果用户同时给了满意度评分，存到 survey_responses
+    if satisfaction >= 1:
+        tag_list = data.get("tags") or []
+        if isinstance(tag_list, str):
+            try:
+                tag_list = json.loads(tag_list)
+            except (json.JSONDecodeError, TypeError):
+                tag_list = []
+
+        comment = (data.get("comment") or "").strip()
+
+        dish_name_for_eval = dish_name
+        if data.get("voted"):
+            dish_evals = [{
+                "name": dish_name_for_eval,
+                "price": 0,
+                "description": description or comment,
+                "tags": tag_list,
+                "voted": True,
+            }]
+        else:
+            dish_evals = []
+
+        save_survey_responses([{
+            "window_name": store_name,
+            "satisfaction": satisfaction,
+            "tags": tag_list,
+            "comment": comment or description,
+            "dish_evaluations": dish_evals,
+        }], submitter_id)
+
+        _source = "survey"
+        _data_source_label = "问卷收集数据"
+
+    return jsonify({
+        "ok": True,
+        "msg": f"🎉 成功添加「{store_name} - {dish_name}」！",
+        "id": new_id,
     })
 
 

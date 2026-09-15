@@ -15,6 +15,7 @@ POSITIVE_TAGS = [
     "🔥口味正宗",
     "🌿食材新鲜",
     "⚡出餐快",
+    "🥗健康",
 ]
 
 NEGATIVE_TAGS = [
@@ -47,7 +48,7 @@ DISH_TAGS_NEGATIVE = [
     "🥶偏凉",
 ]
 
-# 全部食堂窗口（40 个，从 images 目录生成）
+# 全部食堂窗口（56 个，从 images 目录生成）
 WINDOWS = [
     {
         "name": "兰州拉面（一食堂周边）",
@@ -80,10 +81,46 @@ WINDOWS = [
         "image": "/static/images/北京烤鸭热卤饭（一食堂三楼）.jpg",
     },
     {
-        "name": "北方烤饼（二食堂）",
+        "name": "北方烤饼（二食堂一楼）",
         "canteen": "二食堂",
         "cuisine": "面食",
-        "image": "/static/images/北方烤饼（二食堂）.jpg",
+        "image": "/static/images/北方烤饼（二食堂一楼）.jpg",
+    },
+    {
+        "name": "阿狸糖水铺（二食堂一楼）",
+        "canteen": "二食堂",
+        "cuisine": "饮品甜品",
+        "image": "/static/images/阿狸糖水铺（二食堂一楼）.jpg",
+    },
+    {
+        "name": "常德津市牛肉粉（二食堂一楼）",
+        "canteen": "二食堂",
+        "cuisine": "面食",
+        "image": "/static/images/常德津市牛肉粉（二食堂一楼）.jpg",
+    },
+    {
+        "name": "翰林包子铺（二食堂一楼）",
+        "canteen": "二食堂",
+        "cuisine": "面点",
+        "image": "/static/images/翰林包子铺（二食堂一楼）.jpg",
+    },
+    {
+        "name": "滑蛋饭，肠粉（二食堂一楼）",
+        "canteen": "二食堂",
+        "cuisine": "粤式点心",
+        "image": "/static/images/滑蛋饭，肠粉（二食堂一楼）.jpg",
+    },
+    {
+        "name": "面面俱到（二食堂一楼）",
+        "canteen": "二食堂",
+        "cuisine": "面食",
+        "image": "/static/images/面面俱到（二食堂一楼）.jpg",
+    },
+    {
+        "name": "精美大餐（二食堂一楼）",
+        "canteen": "二食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/精美大餐（二食堂一楼）.jpg",
     },
     {
         "name": "南方面点（一食堂一楼）",
@@ -212,16 +249,76 @@ WINDOWS = [
         "image": "/static/images/牛鲜生粉面（一食堂三楼）.jpg",
     },
     {
-        "name": "王喜峰麻辣烫（二食堂）",
+        "name": "王喜峰麻辣烫（二食堂一楼）",
         "canteen": "二食堂",
         "cuisine": "小吃快餐",
-        "image": "/static/images/王喜峰麻辣烫（二食堂）.jpg",
+        "image": "/static/images/王喜峰麻辣烫（二食堂一楼）.jpg",
     },
     {
-        "name": "精品粮自选（二食堂）",
+        "name": "任大泡湘西泡菜（二食堂附近）",
+        "canteen": "二食堂",
+        "cuisine": "小吃快餐",
+        "image": "/static/images/任大泡湘西泡菜（二食堂附近）.jpg",
+    },
+    {
+        "name": "精品粮自选（二食堂一楼）",
         "canteen": "二食堂",
         "cuisine": "家常菜",
-        "image": "/static/images/精品粮自选（二食堂）.jpg",
+        "image": "/static/images/精品粮自选（二食堂一楼）.jpg",
+    },
+    {
+        "name": "258盖码饭（二食堂二楼）",
+        "canteen": "二食堂",
+        "cuisine": "盖浇饭",
+        "image": "/static/images/258盖码饭（二食堂二楼）.jpg",
+    },
+    {
+        "name": "卤味铺子（二食堂二楼）",
+        "canteen": "二食堂",
+        "cuisine": "小吃快餐",
+        "image": "/static/images/卤味铺子（二食堂二楼）.jpg",
+    },
+    {
+        "name": "卤牛肉面（二食堂二楼）",
+        "canteen": "二食堂",
+        "cuisine": "面食",
+        "image": "/static/images/卤牛肉面（二食堂二楼）.jpg",
+    },
+    {
+        "name": "台湾卤肉盖浇饭（二食堂二楼）",
+        "canteen": "二食堂",
+        "cuisine": "盖浇饭",
+        "image": "/static/images/台湾卤肉盖浇饭（二食堂二楼）.jpg",
+    },
+    {
+        "name": "土豆泥拌饭（二食堂二楼）",
+        "canteen": "二食堂",
+        "cuisine": "盖浇饭",
+        "image": "/static/images/土豆泥拌饭（二食堂二楼）.jpg",
+    },
+    {
+        "name": "油泼面（二食堂二楼）",
+        "canteen": "二食堂",
+        "cuisine": "面食",
+        "image": "/static/images/油泼面（二食堂二楼）.jpg",
+    },
+    {
+        "name": "小碗菜（二食堂二楼）",
+        "canteen": "二食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/小碗菜（二食堂二楼）.jpg",
+    },
+    {
+        "name": "徐大川剁椒猪脚饭（二食堂二楼）",
+        "canteen": "二食堂",
+        "cuisine": "盖浇饭",
+        "image": "/static/images/徐大川剁椒猪脚饭（二食堂二楼）.jpg",
+    },
+    {
+        "name": "自选餐区（二食堂二楼）",
+        "canteen": "二食堂",
+        "cuisine": "家常菜",
+        "image": "/static/images/自选餐区（二食堂二楼）.jpg",
     },
     {
         "name": "精品粮贩自选（一食堂二楼）",
@@ -284,10 +381,10 @@ WINDOWS = [
         "image": "/static/images/黄太爷焖锅（一食堂二楼）.jpg",
     },
     {
-        "name": "黄焖鸡（二食堂）",
+        "name": "黄焖鸡（二食堂一楼）",
         "canteen": "二食堂",
         "cuisine": "盖浇饭",
-        "image": "/static/images/黄焖鸡（二食堂）.jpg",
+        "image": "/static/images/黄焖鸡（二食堂一楼）.jpg",
     },
 ]
 

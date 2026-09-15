@@ -7,6 +7,7 @@ const COLORS = ["#FF6B35", "#FFB347", "#FFD700", "#E85D75", "#6AB04C", "#4A90D9"
 
 // ECharts 实例
 const miniCharts = {};
+let popularityChart = null;
 
 // 窗口口碑完整列表（用于搜索过滤）
 let allWindows = [];
@@ -21,13 +22,18 @@ window.onload = async () => {
     await loadCuisineChips();
     await loadRandom();
     await loadWindowList();
+    await loadPopularity();
     await loadMiniCharts();
 };
 
 function initMiniCharts() {
     miniCharts.scoreDist = echarts.init(document.getElementById("mini-score-dist"));
     miniCharts.cuisine = echarts.init(document.getElementById("mini-cuisine-score"));
-    window.addEventListener("resize", () => Object.values(miniCharts).forEach(c => c.resize()));
+    popularityChart = echarts.init(document.getElementById("popularity-chart"));
+    window.addEventListener("resize", () => {
+        Object.values(miniCharts).forEach(c => c.resize());
+        popularityChart.resize();
+    });
 }
 
 // ============ 事件绑定 ============
@@ -354,4 +360,69 @@ async function loadMiniCharts() {
             }],
         });
     }
+}
+
+// ============ 模块2.5：餐品人气榜 ============
+async function loadPopularity() {
+    const chart = document.getElementById("popularity-chart");
+    const list = document.getElementById("popularity-list");
+    if (!popularityChart || !chart) return;
+
+    try {
+        const res = await fetch("/api/popularity?top_n=10");
+        const data = await res.json();
+
+        if (!data.ok || !data.items || data.items.length === 0) {
+            // 无数据 → 显示空状态 + 列表隐藏，chart 里放提示
+            chart.style.display = "none";
+            list.classList.add("show");
+            list.innerHTML = `
+                <div class="popularity-empty">
+                    <div class="emoji">📭</div>
+                    <div>还没有投票数据</div>
+                    <div class="tip">去 <a href="/survey" style="color:#FF6B35;text-decoration:underline;">问卷页</a> 给喜欢的菜投一票吧！</div>
+                </div>
+            `;
+            return;
+        }
+
+        // 有数据 → 隐藏 ECharts 图表，用 HTML 列表展示（带序号 + 完整文字 + 右侧票数）
+        const items = data.items;
+        chart.style.display = "none";
+        list.classList.add("show");
+        renderPopularityList(items);
+
+    } catch (e) {
+        console.error("加载人气榜失败:", e);
+        chart.style.display = "none";
+        list.classList.add("show");
+        list.innerHTML = '<div class="popularity-empty"><div class="emoji">😵</div><div>人气榜加载失败</div></div>';
+    }
+}
+
+function renderPopularityList(items) {
+    const list = document.getElementById("popularity-list");
+    if (!list) return;
+    const maxVotes = Math.max(...items.map(it => it.votes), 1);
+
+    list.innerHTML = items.map(it => {
+        const rankCls = it.rank === 1 ? "top1" : it.rank === 2 ? "top2" : it.rank === 3 ? "top3" : "";
+        // 统一用数字序号，前三名通过不同背景色标记
+        const rankNum = it.rank;
+        // 计算条形宽度百分比
+        const barWidth = (it.votes / maxVotes * 100).toFixed(0);
+        // 根据排名确定条形颜色
+        const barColor = it.rank === 1 ? "#FFD700" : it.rank === 2 ? "#FFB347" : it.rank === 3 ? "#FF9800" : "#FFE4D6";
+
+        return `
+            <div class="popularity-item" style="--bar-width: ${barWidth}%; --bar-color: ${barColor};">
+                <div class="popularity-rank ${rankCls}">${rankNum}</div>
+                <div class="popularity-info">
+                    <div class="popularity-name">${it.dish}</div>
+                    <div class="popularity-window">📍 ${it.window} · ${it.cuisine || ""} · ⭐${Number(it.avg_score).toFixed(1)}</div>
+                </div>
+                <div class="popularity-votes">${it.votes} 票</div>
+            </div>
+        `;
+    }).join("");
 }
