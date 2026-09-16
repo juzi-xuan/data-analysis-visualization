@@ -104,3 +104,6 @@ htmlcov/
 *.png
 *.jpg
 
+# 图片缩略图缓存（由 /api/thumb 动态生成，不需要提交）
+static/thumbs/
+

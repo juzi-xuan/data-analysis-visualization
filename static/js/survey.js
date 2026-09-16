@@ -95,10 +95,14 @@ function renderWindowCards() {
         // 图片区（自定义窗口如果没有图片，就不渲染图片框）
         let imageHTML = "";
         if (window.image && window.image.length > 0) {
+            // 缩略图 URL：走后端 /api/thumb 动态生成，300px 宽足够卡片展示
+            // 只编码文件名部分，保留 / 分隔符，避免 %2F 被服务器/代理误判
+            const encodedPath = window.image.split("/").map(encodeURIComponent).join("/");
+            const thumbUrl = `/api/thumb?path=${encodedPath}&w=300`;
             imageHTML = `
                 <div class="window-card__image-wrap">
-                    <img class="window-card__image"
-                         src="${window.image}"
+                    <img class="window-card__image lazy-img"
+                         data-src="${thumbUrl}"
                          alt="${window.name}"
                          data-full="${window.image}"
                          onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
@@ -189,6 +193,81 @@ function renderWindowCards() {
 
         container.appendChild(card);
     });
+
+    // 每次渲染完重新绑定懒加载观察器（新 DOM 需要重新 observe）
+    observeLazyImages();
+}
+
+// ========== 懒加载：滚动检测 + IntersectionObserver 双保险 ==========
+let _lazyObserver = null;
+let _scrollBound = false;
+
+// 核心：真正负责加载「进入视口附近」的图片
+function loadImagesInViewport() {
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    // 提前 200px 预加载，滚动到时已经加载好
+    const margin = 200;
+
+    document.querySelectorAll("img.lazy-img[data-src]").forEach(img => {
+        const rect = img.getBoundingClientRect();
+        // 图片顶部进入视口下方 margin 内，且还没完全滚出视口上方
+        if (rect.top < vh + margin && rect.bottom > -margin) {
+            const src = img.dataset.src;
+            if (src) {
+                // onload 后加 loaded class（去掉 shimmer + 淡入）
+                img.onload = () => img.classList.add("loaded");
+                img.src = src;
+                img.removeAttribute("data-src");
+            }
+            // 已加载则不再被 IO 跟踪
+            if (_lazyObserver) _lazyObserver.unobserve(img);
+        }
+    });
+}
+
+function observeLazyImages() {
+    // 渲染后立刻加载首屏内的图片（不依赖 IO，避免首屏空白）
+    loadImagesInViewport();
+
+    // IO 作为增强：在真实浏览器里滚动触发更精准，省去滚动监听的开销
+    if ("IntersectionObserver" in window && !_lazyObserver) {
+        _lazyObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    const src = img.dataset.src;
+                    if (src) {
+                        img.onload = () => img.classList.add("loaded");
+                        img.src = src;
+                        img.removeAttribute("data-src");
+                    }
+                    _lazyObserver.unobserve(img);
+                }
+            });
+        }, {
+            rootMargin: "200px",
+            threshold: 0.01,
+        });
+
+        // 把当前所有未加载图片交给 IO 跟踪
+        document.querySelectorAll("img.lazy-img[data-src]").forEach(img => {
+            _lazyObserver.observe(img);
+        });
+    }
+
+    // 滚动兜底：无论 IO 是否可用，滚动时都手动检查一次（节流）
+    if (!_scrollBound) {
+        let ticking = false;
+        window.addEventListener("scroll", () => {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(() => {
+                loadImagesInViewport();
+                ticking = false;
+            });
+        }, { passive: true });
+        _scrollBound = true;
+    }
 }
 
 // 渲染菜品选择器 HTML（折叠状态初始关闭）

@@ -620,6 +620,87 @@ def api_analysis_sentiment():
 
 
 # ============================================================
+# 图片缩略图 API（按需动态生成 + 磁盘缓存，节省带宽）
+# ============================================================
+
+from PIL import Image as PILImage
+
+# 缩略图缓存目录（static/thumbs/ 下，按尺寸分子目录）
+_THUMB_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "thumbs")
+os.makedirs(_THUMB_ROOT, exist_ok=True)
+
+# 允许的缩略图宽度（白名单防滥用）
+_ALLOWED_THUMB_WIDTHS = {200, 300, 400, 600}
+
+
+@app.route("/api/thumb")
+def api_thumb():
+    """
+    图片缩略图服务：
+      /api/thumb?path=/static/images/xxx.jpg&w=300
+
+    工作流程：
+    1. 把 path 转成真实文件路径，做安全校验（必须在 static/ 下）
+    2. 缓存文件存在则直接返回，不存在才用 Pillow 生成
+    3. 返回 JPEG 流 + 长缓存头（7 天）
+    """
+    import hashlib
+
+    path = request.args.get("path", "").strip()
+    width = request.args.get("w", 300, type=int)
+
+    # 安全校验
+    if not path.startswith("/static/"):
+        return jsonify({"ok": False, "msg": "非法路径"}), 400
+    if width not in _ALLOWED_THUMB_WIDTHS:
+        width = 300
+
+    # 真实源文件路径
+    src_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), path.lstrip("/")
+    )
+    if not os.path.isfile(src_path):
+        # 原图不存在，返回 404
+        return ("not found", 404)
+
+    # 缓存文件路径：按 width 分子目录 + 原路径 hash 做文件名
+    safe_hash = hashlib.md5(path.encode("utf-8")).hexdigest()
+    ext = os.path.splitext(src_path)[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+        ext = ".jpg"
+    cache_file = os.path.join(_THUMB_ROOT, str(width), safe_hash + ext)
+
+    # 缓存命中 → 直接返回（带上长缓存头）
+    if os.path.isfile(cache_file):
+        resp = send_file(cache_file, mimetype="image/jpeg")
+        resp.headers["Cache-Control"] = "public, max-age=604800"  # 7 天
+        return resp
+
+    # 未命中 → 用 Pillow 生成
+    try:
+        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+        with PILImage.open(src_path) as im:
+            # 转 RGB（JPEG 不支持 RGBA）
+            if im.mode in ("RGBA", "P"):
+                im = im.convert("RGB")
+            w, h = im.size
+            # 按比例缩放
+            if w > width:
+                ratio = width / w
+                new_h = int(h * ratio)
+                im = im.resize((width, new_h), PILImage.LANCZOS)
+            # 保存到缓存（JPEG quality=75，肉眼无差）
+            im.save(cache_file, "JPEG", quality=75, optimize=True)
+    except Exception as e:
+        # 生成失败 → 返回原图兜底
+        return send_file(src_path)
+
+    resp = send_file(cache_file, mimetype="image/jpeg")
+    resp.headers["Cache-Control"] = "public, max-age=604800"
+    return resp
+
+
+# ============================================================
 # 启动入口
 # ============================================================
 
