@@ -5,6 +5,7 @@
 """
 
 import io
+import json
 import os
 import sqlite3
 import time
@@ -44,12 +45,15 @@ from utils.data_loader import (
     compute_window_rank,
     ensure_survey_db,
     enrich_windows_with_dishes,
+    ensure_store_image,
+    get_store_by_name,
     load_custom_dishes,
     load_data,
     load_dish_images,
     load_survey_data,
     save_dish_image,
     save_survey_responses,
+    search_custom_stores,
 )
 from utils.text_analyzer import compute_word_freq
 from utils.persona import compute_persona
@@ -57,6 +61,11 @@ from config.windows import WINDOWS, POSITIVE_TAGS, NEGATIVE_TAGS, DISH_TAGS_POSI
 
 app = Flask(__name__)
 app.secret_key = "canteen-dashboard-secret"  # session 需要
+
+# ---------- 消掉 favicon.ico 404 ----------
+@app.route("/favicon.ico")
+def favicon():
+    return ("", 204, {"Content-Type": "image/x-icon"})  # 204 No Content
 
 # ============================================================
 # 全局状态管理：当前活跃数据
@@ -382,7 +391,7 @@ def api_download():
 
 @app.route("/api/survey/windows")
 def api_survey_windows():
-    """返回窗口配置（含 dishes）+ 预设标签 + 自定义餐品"""
+    """返回窗口配置（含 dishes）+ 预设标签 + 自定义餐品（按店分组）"""
     # enrich_windows_with_dishes 会读取 CSV 并给匹配的窗口加上 dishes 数组
     enriched = enrich_windows_with_dishes(list(WINDOWS))
 
@@ -392,26 +401,39 @@ def api_survey_windows():
         for d in w.get("dishes", []):
             d["image"] = dish_images.get((w["name"], d["name"]), "")
 
-    # 把自定义餐品也加入（作为"其他"食堂的窗口）
-    custom_dishes = load_custom_dishes()
+    # 把自定义餐品按店分组：一家店 = 一个 window（带 dishes 数组）
+    grouped_stores = load_custom_dishes()
     custom_windows = []
-    for cd in custom_dishes:
+    for store in grouped_stores:
+        dishes_out = []
+        for d in store["dishes"]:
+            # 菜品自己的展示图：custom_dishes.image_path 优先，其次查 dish_images 表
+            dish_img = dish_images.get((store["store_name"], d["dish_name"]), "") or d["image_path"]
+            dishes_out.append({
+                "name": d["dish_name"],
+                "price": 0,
+                "image": dish_img,
+                "description": d["description"],
+            })
+
+        #店子的卡片主图：store_image_path 优先，其次取店中第一道菜的图兜底
+        store_main_img = store["store_image_path"] or (store["dishes"][0]["image_path"] if store["dishes"] else "")
+
         custom_windows.append({
-            "name": cd["store_name"],
+            "name": store["store_name"],
             "canteen": "其他",
-            "cuisine": cd["cuisine"],
-            "image": cd["image_path"] or "",
-            "description": cd["description"],
-            "address": cd["address"],
-            "dish_name": cd["dish_name"],
-            # 自定义餐品本身就是一道菜，它的展示图就是上传的那张
-            "dish_image": cd["image_path"] or "",
+            "cuisine": store["cuisine"],
+            "image": store_main_img,
+            "description": store["store_description"],
+            "address": store["address"],
+            "dishes": dishes_out,
+            # 自定义店不再有单个 dish_name/dish_image —— 改由 dishes 数组承载所有菜
             "is_custom": True,
         })
 
     return jsonify({
         "windows": enriched + custom_windows,
-        "custom_dishes": custom_dishes,
+        "custom_dishes": custom_windows,  # 保留字段兼容旧前端
         "positive_tags": POSITIVE_TAGS,
         "negative_tags": NEGATIVE_TAGS,
         "dish_tags_positive": DISH_TAGS_POSITIVE,
@@ -484,7 +506,12 @@ def api_survey_dish_image():
 def api_survey_custom_dish():
     """
     添加自定义餐品（multipart/form-data，图片可选）
-    同时如果填了满意度评分，会自动存一条初始评价到 survey_responses
+
+    现在支持：
+    - store_image: 店子级别的展示图（仅当店还没有图时会被保存）
+    - image: 这道菜的展示图（一道菜一张）
+
+    店已经存在的话，只添加菜品；店不存在就同时创建店和菜品。
     """
     global _source, _data_source_label
 
@@ -516,8 +543,15 @@ def api_survey_custom_dish():
     except (ValueError, TypeError):
         satisfaction = 0
 
-    # 处理图片（可选）
-    image_path = ""
+    submitter_id = session.get("submitter_id")
+    if not submitter_id:
+        submitter_id = uuid.uuid4().hex[:12]
+        session["submitter_id"] = submitter_id
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # ---------- 处理菜品图（image 字段） ----------
+    dish_image_path = ""
     if "image" in request.files:
         image_file = request.files["image"]
         if image_file and image_file.filename:
@@ -526,36 +560,81 @@ def api_survey_custom_dish():
                 filename = f"custom_{uuid.uuid4().hex[:12]}{ext}"
                 save_path = os.path.join(_CUSTOM_IMAGE_DIR, filename)
                 image_file.save(save_path)
-                image_path = f"/static/images/custom/{filename}"
+                dish_image_path = f"/static/images/custom/{filename}"
 
-    submitter_id = session.get("submitter_id")
-    if not submitter_id:
-        submitter_id = uuid.uuid4().hex[:12]
-        session["submitter_id"] = submitter_id
-
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # 存到 custom_dishes 表
+    # ---------- 写库：先判断状态，再决定要不要存店图 ----------
     ensure_survey_db()
     conn = sqlite3.connect(
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "survey.db")
     )
     try:
-        # 检查是否已存在相同店名+餐品
-        existing = conn.execute(
+        # 检查 (店名 + 菜品) 是否已存在（防止重复添加同一道菜）
+        existing_dish = conn.execute(
             "SELECT id FROM custom_dishes WHERE store_name = ? AND dish_name = ?",
             (store_name, dish_name),
         ).fetchone()
-        if existing:
+        if existing_dish:
+            # 清理已保存的菜品图文件（孤儿）
+            if dish_image_path:
+                try:
+                    os.remove(os.path.join(app.root_path, dish_image_path.lstrip("/")))
+                except OSError:
+                    pass
             conn.close()
             return jsonify({"ok": False, "msg": "这家店这个餐品已经有人添加过啦，可以直接去评价～"}), 400
 
+        # 查店子是否已存在 + 有没有店图
+        store_row = conn.execute(
+            "SELECT store_image_path FROM custom_dishes WHERE store_name = ? LIMIT 1",
+            (store_name,),
+        ).fetchone()
+        store_exists = bool(store_row)
+        store_has_image = bool(store_row and store_row[0])
+
+        # ---------- 处理店图 ----------
+        # 新店 → 保存店图（如果上传了）
+        # 老店且没图 → 补店图
+        # 老店已有图 → 跳过（避免孤儿文件）
+        store_image_path = ""
+        store_image_file_saved = False
+        if "store_image" in request.files:
+            store_file = request.files["store_image"]
+            if store_file and store_file.filename and not store_has_image:
+                ext = os.path.splitext(store_file.filename)[1].lower()
+                if ext in ALLOWED_IMAGE_EXT:
+                    filename = f"store_{uuid.uuid4().hex[:12]}{ext}"
+                    save_path = os.path.join(_CUSTOM_IMAGE_DIR, filename)
+                    store_file.save(save_path)
+                    store_image_path = f"/static/images/custom/{filename}"
+                    store_image_file_saved = True
+
+        # 写入菜品行
         conn.execute(
             "INSERT INTO custom_dishes "
-            "(store_name, address, dish_name, cuisine, image_path, description, submitter_id, submit_date) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (store_name, address, dish_name, cuisine, image_path, description, submitter_id, now),
+            "(store_name, address, dish_name, cuisine, image_path, description, "
+            "submitter_id, submit_date, store_image_path) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                store_name,
+                address,
+                dish_name,
+                cuisine,
+                dish_image_path,
+                description,
+                submitter_id,
+                now,
+                store_image_path if store_image_file_saved else None,
+            ),
         )
+
+        # 老店 + 新补了店图 → 把店图同步到所有同店的老记录
+        if store_exists and store_image_file_saved:
+            conn.execute(
+                "UPDATE custom_dishes SET store_image_path = ? "
+                "WHERE store_name = ? AND (store_image_path IS NULL OR store_image_path = '')",
+                (store_image_path, store_name),
+            )
+
         conn.commit()
         new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
@@ -595,11 +674,22 @@ def api_survey_custom_dish():
         _source = "survey"
         _data_source_label = "问卷收集数据"
 
+    action = "加菜成功" if store_exists else "添加成功"
     return jsonify({
         "ok": True,
-        "msg": f"🎉 成功添加「{store_name} - {dish_name}」！",
+        "msg": f"🎉 {action}！「{store_name} - {dish_name}」已发布～",
         "id": new_id,
+        "store_exists": bool(store_exists),
     })
+
+
+@app.route("/api/survey/search_stores")
+def api_survey_search_stores():
+    """搜索匹配的自定义店子（用于店名输入框的自动补全）"""
+    keyword = request.args.get("q", "").strip()
+    limit = request.args.get("limit", 15, type=int)
+    stores = search_custom_stores(keyword, limit=limit)
+    return jsonify({"ok": True, "items": stores})
 
 
 @app.route("/api/survey/submit", methods=["POST"])

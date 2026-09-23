@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>校园食堂 · 口碑指南</title>
 
     <!-- 学生端公共外壳：设计令牌 / 顶栏 / 侧栏 / 弹窗 -->
@@ -59,6 +59,7 @@
             max-width: 46%;
             color: #fff;
             align-self: flex-end;
+            margin-bottom: 4px;
         }
         .hero-content h1 {
             font-size: 30px;
@@ -311,6 +312,22 @@
                 align-items: stretch;
             }
             .cta-link { justify-content: center; }
+        }
+
+        @media (max-width: 480px) {
+            .hero { padding: 20px 16px; min-height: 260px; }
+            /* 图片右移，让左边的「今天吃什么？」完整露出来 */
+            .hero-media { background-position: left center; }
+            .hero-content h1 { font-size: 22px; }
+            .hero-content p { font-size: 13px; }
+            .hero-cta {
+                height: 46px; padding: 0 24px; font-size: 14px;
+                width: 100%; justify-content: center;
+                margin-top: 0;
+            }
+            .hero-card { margin-top: 60px; }
+            .rank-row { padding: 16px; }
+            .rank-item { min-width: 0; flex: 1 1 50%; }
         }
     </style>
 </head>

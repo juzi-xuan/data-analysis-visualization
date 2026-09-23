@@ -4,6 +4,24 @@
 // ============================================================
 
 // ------------------------------------------------------------
+// 全局 Toast 通知（替代原生 alert）
+// showToast(msg, type)  type: success / error / info / warn
+// ------------------------------------------------------------
+let _toastEl = null;
+function showToast(msg, type = "info", duration = 2500) {
+    if (!_toastEl) {
+        _toastEl = document.createElement("div");
+        _toastEl.className = "app-toast";
+        document.body.appendChild(_toastEl);
+    }
+    _toastEl.className = `app-toast toast-${type}`;
+    _toastEl.textContent = msg;
+    _toastEl.classList.add("show");
+    clearTimeout(_toastEl._timer);
+    _toastEl._timer = setTimeout(() => _toastEl.classList.remove("show"), duration);
+}
+
+// ------------------------------------------------------------
 // 内联 SVG 图标
 // 不用 emoji 当图标：emoji 依赖系统字体、各平台长得不一样，
 // 而且没法用 CSS 控颜色和尺寸。SVG 可以 currentColor 跟随文字色。
@@ -106,6 +124,45 @@ function initWindowModal() {
 function closeWindowModal() {
     document.getElementById("window-modal")?.classList.remove("show");
 }
+
+// ------------------------------------------------------------
+// 顶栏面包屑下拉菜单（所有页面共用）
+// 点汉堡按钮开关菜单；点菜单外 / 按 Esc 关闭；点菜单项直接跳转
+// ------------------------------------------------------------
+(function initBreadcrumb() {
+    const wrap = document.getElementById("app-nav-breadcrumb");
+    if (!wrap) return;
+    const trigger = wrap.querySelector("#bc-trigger");
+    const menu = wrap.querySelector(".bc-menu");
+    if (!trigger || !menu) return;
+
+    function open() {
+        menu.classList.add("show");
+        trigger.setAttribute("aria-expanded", "true");
+    }
+    function close() {
+        menu.classList.remove("show");
+        trigger.setAttribute("aria-expanded", "false");
+    }
+    function toggle() { menu.classList.contains("show") ? close() : open(); }
+
+    trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggle();
+    });
+    // 点菜单里的链接 — 关闭后让原生跳转继续
+    menu.addEventListener("click", (e) => {
+        if (e.target.closest(".bc-item")) close();
+    });
+    // 点页面其他地方 — 关闭
+    document.addEventListener("click", (e) => {
+        if (!wrap.contains(e.target)) close();
+    });
+    // Esc 关闭
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") close();
+    });
+})();
 
 async function openWindowDetail(windowName) {
     const modal = document.getElementById("window-modal");

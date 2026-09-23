@@ -23,6 +23,53 @@ let surveyState = {};
 
 const RATING_TEXTS = ["一般", "还行", "不错", "挺好吃", "超好吃"];
 
+// localStorage 草稿键
+const DRAFT_KEY = "canteen_survey_draft_v1";
+let _draftSaveTimer = null;
+
+function saveDraft() {
+    if (_draftSaveTimer) clearTimeout(_draftSaveTimer);
+    _draftSaveTimer = setTimeout(() => {
+        try {
+            // 只存已评价的窗口，节省空间
+            const dirty = {};
+            Object.entries(surveyState).forEach(([name, s]) => {
+                if (s.score > 0 || s.tags.length || s.comment || s.dishEvaluations.length) {
+                    dirty[name] = s;
+                }
+            });
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(dirty));
+        } catch (e) { /* 隐私模式可能禁 localStorage，忽略 */ }
+    }, 300);
+}
+
+function loadDraft() {
+    try {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (!raw) return;
+        const draft = JSON.parse(raw);
+        let restored = 0;
+        Object.entries(draft).forEach(([name, s]) => {
+            if (surveyState[name]) {
+                surveyState[name] = {
+                    score: s.score || 0,
+                    tags: s.tags || [],
+                    comment: s.comment || "",
+                    dishEvaluations: s.dishEvaluations || [],
+                };
+                restored++;
+            }
+        });
+        if (restored > 0 && typeof window.showToast === "function") {
+            window.showToast(`✅ 恢复了 ${restored} 个窗口的草稿`, "info", 2500);
+        }
+    } catch (e) { /* 忽略 */ }
+}
+
+function clearDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* 忽略 */ }
+}
+
 // ========== 初始化 ==========
 
 async function initSurvey() {
@@ -44,6 +91,9 @@ async function initSurvey() {
                 dishEvaluations: [],
             };
         });
+
+        // 从 localStorage 恢复上次没提交的草稿
+        loadDraft();
 
         renderWindowCards();
         bindEvents();
@@ -87,9 +137,9 @@ function renderWindowCards() {
             ? `<span class="window-card__canteen-tag">${window.canteen}</span>`
             : "";
 
-        // 自定义窗口的餐品名标签
-        const dishBadge = window.is_custom && window.dish_name
-            ? `<span class="window-card__canteen-tag" style="top:32px;background:rgba(255,107,53,0.85);">🍜 ${escapeHTML(window.dish_name)}</span>`
+        // 自定义店子：显示菜数量徽标（例如 "3 道菜"）
+        const dishCountBadge = window.is_custom && window.dishes && window.dishes.length > 0
+            ? `<span class="window-card__canteen-tag" style="top:32px;background:rgba(255,107,53,0.85);">🍜 ${window.dishes.length} 道菜</span>`
             : "";
 
         // 图片区（自定义窗口如果没有图片，就不渲染图片框）
@@ -109,7 +159,7 @@ function renderWindowCards() {
                     <div class="window-card__emoji-fallback" style="display:none;">🍜</div>
                     <span class="window-card__image-hint">🔍 点击放大</span>
                     ${canteenTag}
-                    ${dishBadge}
+                    ${dishCountBadge}
                 </div>`;
         } else {
             // 无图片：用一个简洁的标题区替代
@@ -117,15 +167,15 @@ function renderWindowCards() {
                 <div class="window-card__no-image-top">
                     <span class="window-card__no-image-emoji">🏪</span>
                     ${canteenTag}
-                    ${dishBadge}
+                    ${dishCountBadge}
                 </div>`;
         }
 
-        // 菜品选择器区域（自定义窗口一般没有 CSV 菜品，跳过）
+        // 菜品选择器区域 —— 自定义店现在也有 dishes 数组，一起渲染
         let dishSelectorHTML = "";
-        if (!window.is_custom) {
-            const hasDishes = window.dishes && window.dishes.length > 0;
-            dishSelectorHTML = hasDishes ? renderDishSelector(window, state) : "";
+        const hasDishes = window.dishes && window.dishes.length > 0;
+        if (hasDishes) {
+            dishSelectorHTML = renderDishSelector(window, state);
         }
 
         // 自定义窗口的地址展示
@@ -424,8 +474,6 @@ function applyDishImage(windowName, dishName, imagePath) {
             const dish = win.dishes.find(d => d.name === dishName);
             if (dish) dish.image = imagePath;
         }
-        // 自定义餐品：窗口本身就是那道菜
-        if (win.dish_name === dishName) win.dish_image = imagePath;
     }
 
     const card = document.querySelector(`.window-card[data-window="${CSS.escape(windowName)}"]`);
@@ -601,6 +649,7 @@ function bindCardEvents() {
             } else {
                 card.classList.remove("evaluated");
             }
+            saveDraft();
         });
     });
 
@@ -619,6 +668,7 @@ function bindCardEvents() {
                 tags.push(tag);
                 tagEl.classList.add("selected");
             }
+            saveDraft();
         });
     });
 
@@ -628,6 +678,7 @@ function bindCardEvents() {
             const card = ta.closest(".window-card");
             const windowName = card.dataset.window;
             surveyState[windowName].comment = ta.value;
+            saveDraft();
         });
     });
 
@@ -693,10 +744,11 @@ function bindCardEvents() {
             }
 
             updateDishInputsAndCount(card, windowName);
+            saveDraft();
         });
     });
 
-    // 已选菜品描述 textarea 输入（用事件委托，因为是动态生成的）
+    // 已选菜品描述 textarea 输入（事件委托，动态生成的也能触发）
     // 放在下面的 bindCardEvents 末尾统一处理
 
     // 取消已选菜品的 ✕ 按钮
@@ -720,6 +772,7 @@ function bindCardEvents() {
 
             // 更新 UI
             updateDishInputsAndCount(card, windowName);
+            saveDraft();
         });
     });
 
@@ -735,6 +788,7 @@ function bindCardEvents() {
             if (evalItem) {
                 evalItem.description = ta.value;
             }
+            saveDraft();
         });
     });
 }
@@ -770,6 +824,7 @@ function updateDishInputsAndCount(card, windowName) {
                 const dishName = row.dataset.dish;
                 const evalItem = state.dishEvaluations.find(e => e.name === dishName);
                 if (evalItem) evalItem.description = ta.value;
+                saveDraft();
             });
         });
 
@@ -786,6 +841,7 @@ function updateDishInputsAndCount(card, windowName) {
                 }
 
                 updateDishInputsAndCount(card, windowName);
+                saveDraft();
             });
         });
 
@@ -806,6 +862,7 @@ function updateDishInputsAndCount(card, windowName) {
                     evalItem.tags.push(tag);
                     tagEl.classList.add("selected");
                 }
+                saveDraft();
             });
         });
 
@@ -828,6 +885,7 @@ function updateDishInputsAndCount(card, windowName) {
                     text.textContent = "投它一票";
                     btn.title = "投它一票！登上人气榜 🙌";
                 }
+                saveDraft();
             });
         });
     }
@@ -868,6 +926,7 @@ function resetSurvey() {
             dishEvaluations: [],
         };
     });
+    clearDraft();  // 重置也要清草稿
     renderWindowCards();
     bindCardEvents();
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -912,6 +971,8 @@ async function submitSurvey(e) {
         const data = await resp.json();
 
         if (data.ok) {
+            // 提交成功 → 清掉草稿，下次进来是干净的
+            clearDraft();
             document.getElementById("success-modal").classList.remove("hidden");
             
             // 展示多个人设卡片（最多3个）
@@ -1144,6 +1205,10 @@ function bindCustomDishModal() {
     const closeBtn = document.getElementById("custom-modal-close");
     const cancelBtn = document.getElementById("custom-cancel-btn");
     const form = document.getElementById("custom-dish-form");
+    const storeNameInput = document.getElementById("custom-store-name");
+    const datalist = document.getElementById("existing-stores-list");
+    const storeHint = document.getElementById("custom-store-hint");
+    const storeOnlyFields = form.querySelectorAll(".custom-store-only");
     const fileInput = document.getElementById("custom-image-input");
     const preview = document.getElementById("custom-image-preview");
     const previewImg = document.getElementById("custom-preview-img");
@@ -1151,11 +1216,17 @@ function bindCustomDishModal() {
     const starsEl = document.getElementById("custom-rating-stars");
     const hiddenSat = document.getElementById("custom-satisfaction");
 
+    // 顶部 hero 区的店图上传（代替原来的表单行）
+    const storeHero = document.getElementById("store-image-hero");
+    const storeHeroImg = document.getElementById("store-image-hero-img");
+    const storeFileInput = document.getElementById("custom-store-image-input");
+
     // 打开弹窗
     if (openBtn) {
         openBtn.addEventListener("click", () => {
             modal.classList.remove("hidden");
             document.body.style.overflow = "hidden";
+            refreshStoreDatalist("");
         });
     }
 
@@ -1169,6 +1240,15 @@ function bindCustomDishModal() {
         renderStars(starsEl, 0);
         preview.style.display = "none";
         previewImg.src = "";
+        // 重置顶部 hero 图片区
+        storeFileInput.value = "";
+        storeHeroImg.src = "";
+        storeHeroImg.hidden = true;
+        storeHero.classList.remove("has-image");
+        storeHint.hidden = true;
+        storeHint.textContent = "";
+        storeHint.classList.remove("is-new");
+        setIsExistingStore(false);
     };
 
     if (closeBtn) closeBtn.addEventListener("click", closeModal);
@@ -1184,7 +1264,152 @@ function bindCustomDishModal() {
         }
     });
 
-    // 弹窗里的星星评分（hover + click）
+    // ---------- 顶部 hero 区 → 店图上传 ----------
+    function setHeroImage(path) {
+        if (path) {
+            storeHeroImg.src = path;
+            storeHeroImg.hidden = false;
+            storeHero.classList.add("has-image");
+        } else {
+            storeHeroImg.src = "";
+            storeHeroImg.hidden = true;
+            storeHero.classList.remove("has-image");
+        }
+    }
+
+    if (storeHero && storeFileInput) {
+        // 点击整个 hero 区（不管有没有图）都触发 file input
+        storeHero.addEventListener("click", () => storeFileInput.click());
+        storeFileInput.addEventListener("change", () => {
+            const file = storeFileInput.files && storeFileInput.files[0];
+            if (file) {
+                // 用 DataURL 做即时预览（比立刻上传后端体验更快）
+                const reader = new FileReader();
+                reader.onload = (ev) => setHeroImage(ev.target.result);
+                reader.readAsDataURL(file);
+            } else {
+                setHeroImage(null);
+            }
+        });
+    }
+
+    // ---------- 店名 autocomplete ----------
+    let autocompleteTimer = null;
+    let matchedStore = null;  // { store_name, address, cuisine, store_image_path } 或 null
+    let lastInputValue = "";
+
+    function setIsExistingStore(isExisting) {
+        storeOnlyFields.forEach(function (el) {
+            el.style.display = isExisting ? "none" : "";
+        });
+    }
+
+    function refreshStoreDatalist(keyword) {
+        fetch(`/api/survey/search_stores?q=${encodeURIComponent(keyword || "")}`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.ok) return;
+                datalist.innerHTML = "";
+                data.items.forEach(function (s) {
+                    const opt = document.createElement("option");
+                    opt.value = s.store_name;
+                    if (s.address) opt.setAttribute("data-address", s.address);
+                    datalist.appendChild(opt);
+                });
+            })
+            .catch(() => {});
+    }
+
+    function updateStoreHint(storeName) {
+        // 去后端精确查一下有没有这家店
+        fetch(`/api/survey/search_stores?q=${encodeURIComponent(storeName)}&limit=5`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.ok) return;
+                // 精确匹配
+                const exact = data.items.find(s => s.store_name === storeName);
+                if (exact) {
+                    matchedStore = exact;
+                    setIsExistingStore(true);
+                    storeHint.hidden = false;
+                    storeHint.classList.remove("is-new");
+                    let text = `🏪 检测到「${exact.store_name}」已经存在！`;
+                    if (exact.address) text += ` 地址：${exact.address}`;
+                    storeHint.innerHTML = text + ` <a href="#" id="jump-to-store" style="color:#2D8A44;text-decoration:underline;margin-left:6px;">去评价这家店 →</a>`;
+                    storeHint.style.color = "#2D8A44";
+                    // 已有店：加载它的店图到顶部 hero
+                    if (exact.store_image_path && !storeFileInput.files?.length) {
+                        // 用户没重新选过图才覆盖，尊重本地选择
+                        setHeroImage(exact.store_image_path);
+                    }
+                    // 绑定跳转
+                    const jumpBtn = storeHint.querySelector("#jump-to-store");
+                    if (jumpBtn) {
+                        jumpBtn.addEventListener("click", function (ev) {
+                            ev.preventDefault();
+                            closeModal();
+                            // 切到"其他" tab
+                            const otherTab = document.querySelector('.canteen-tab[data-canteen="其他"]');
+                            if (otherTab) otherTab.click();
+                            // 延迟一点再滚动（等卡片渲染完）
+                            setTimeout(() => {
+                                const card = document.querySelector(`.window-card[data-window="${CSS.escape(exact.store_name)}"]`);
+                                if (card) {
+                                    card.scrollIntoView({ behavior: "smooth", block: "center" });
+                                    card.animate(
+                                        [{ boxShadow: "0 0 0 0 rgba(255,107,53,0)" },
+                                         { boxShadow: "0 0 0 8px rgba(255,107,53,0.45)" },
+                                         { boxShadow: "0 0 0 0 rgba(255,107,53,0)" }],
+                                        { duration: 1400, easing: "ease-out" }
+                                    );
+                                }
+                            }, 80);
+                        });
+                    }
+                } else {
+                    matchedStore = null;
+                    setIsExistingStore(false);
+                    storeHint.hidden = false;
+                    storeHint.classList.add("is-new");
+                    storeHint.textContent = "✨ 这是一家新店！欢迎创建，填上地址/菜系/店图吧～";
+                    // 新店：重置 hero（除非用户已手动选了图）
+                    if (!storeFileInput.files?.length) setHeroImage(null);
+                }
+            })
+            .catch(() => {});
+    }
+
+    if (storeNameInput) {
+        storeNameInput.addEventListener("input", () => {
+            const v = storeNameInput.value.trim();
+            if (v === lastInputValue) return;
+            lastInputValue = v;
+
+            if (!v) {
+                // 空了 → 新店模式
+                matchedStore = null;
+                storeHint.hidden = true;
+                setIsExistingStore(false);
+                // 立即刷新 datalist（展示所有热门店子）
+                refreshStoreDatalist("");
+                return;
+            }
+            // 防抖：300ms 后再查
+            clearTimeout(autocompleteTimer);
+            autocompleteTimer = setTimeout(() => {
+                refreshStoreDatalist(v);
+                updateStoreHint(v);
+            }, 300);
+        });
+
+        // 失焦时再精确查一次（用户从 datalist 选中后，input 会被赋值）
+        storeNameInput.addEventListener("blur", () => {
+            const v = storeNameInput.value.trim();
+            if (v) updateStoreHint(v);
+        });
+    }
+
+    // ---------- 星星评分（hover + click） ----------
     if (starsEl) {
         starsEl.addEventListener("mouseenter", (e) => {
             const target = e.target.closest(".star");
@@ -1203,7 +1428,7 @@ function bindCustomDishModal() {
         });
     }
 
-    // 图片选择 → 预览
+    // ---------- 菜品图预览 ----------
     if (fileInput) {
         fileInput.addEventListener("change", () => {
             const file = fileInput.files && fileInput.files[0];
@@ -1218,7 +1443,6 @@ function bindCustomDishModal() {
         });
     }
 
-    // 移除图片
     if (removeImgBtn) {
         removeImgBtn.addEventListener("click", () => {
             fileInput.value = "";
@@ -1235,7 +1459,7 @@ function bindCustomDishModal() {
             const storeName = form.store_name.value.trim();
             const dishName = form.dish_name.value.trim();
             if (!storeName || !dishName) {
-                alert("请填写店名和餐品名～");
+                showToast("请填写店名和餐品名～", "warn");
                 return;
             }
 
@@ -1245,8 +1469,11 @@ function bindCustomDishModal() {
 
             try {
                 const fd = new FormData(form);
-                // 把 hidden satisfaction value 写上（因为星星组件不自动更新 input value）
                 fd.set("satisfaction", customRating);
+                // storeFileInput 在 form 外面（移到顶部 hero 区了），手动 append
+                if (storeFileInput.files && storeFileInput.files[0]) {
+                    fd.append("store_image", storeFileInput.files[0]);
+                }
 
                 const resp = await fetch("/api/survey/custom_dish", {
                     method: "POST",
@@ -1256,7 +1483,7 @@ function bindCustomDishModal() {
                 const data = await resp.json();
 
                 if (data.ok) {
-                    alert(data.msg);
+                    showToast(data.msg, "success");
                     closeModal();
 
                     // 重新拉取窗口列表 + 重新渲染卡片
@@ -1267,11 +1494,11 @@ function bindCustomDishModal() {
                         document.querySelector('.canteen-tab[data-canteen="其他"]').click();
                     }
                 } else {
-                    alert(data.msg || "发布失败，请稍后重试");
+                    showToast(data.msg || "发布失败，请稍后重试", "error");
                 }
             } catch (err) {
                 console.error(err);
-                alert("网络错误，请检查连接后重试");
+                showToast("网络错误，请检查连接后重试", "error");
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = "📣 发布";
@@ -1319,3 +1546,10 @@ document.addEventListener("error", (e) => {
 // ========== 启动 ==========
 
 initSurvey();
+
+// 兜底：页面关闭/刷新/切 tab 之前再存一次
+// （移动端 Safari 有时 beforeunload 不触发，但 saveDraft 已经在每个输入点都调了，
+//  这里主要照顾桌面浏览器和某些 Chrome 版本）
+window.addEventListener("beforeunload", () => {
+    saveDraft();
+});

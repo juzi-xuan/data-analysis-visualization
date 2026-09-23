@@ -2,13 +2,12 @@
    参数：
      search_placeholder  搜索框占位文字（可选）
      search_label        搜索框的无障碍名称（可选）
-   注意：搜索框 id 固定为 search-input，各页面的 JS 各自接管它的过滤行为。
+     nav_active          当前高亮：'home' | 'windows' | 'survey'
 #}
 <header class="app-topbar">
     <div class="app-topbar-inner">
         <a class="brand" href="/">
             <span class="brand-mark" aria-hidden="true">
-                <!-- 碗 + 热气（内联 SVG，不用 emoji） -->
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 11h18"/>
@@ -31,9 +30,33 @@
                    placeholder="{{ search_placeholder | default('搜索食堂、窗口、菜品…') }}">
         </div>
 
-        <div class="app-user">
-            <span class="app-user-greet">你好,同学</span>
-            <span class="app-user-avatar" aria-hidden="true">同</span>
+        {# 面包屑下拉（所有页面共用，用 nav_active 高亮当前项） #}
+        <div class="app-nav-breadcrumb" id="app-nav-breadcrumb">
+            <button class="bc-trigger" id="bc-trigger" aria-label="导航菜单" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="3" y1="6"  x2="21" y2="6"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+            <nav class="bc-menu" role="menu">
+                <a class="bc-item {% if nav_active == 'home' %}active{% endif %}"
+                   href="/" role="menuitem" {% if nav_active == 'home' %}aria-current="page"{% endif %}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9.6V20h13V9.6"/></svg>
+                    <span>首页</span>
+                </a>
+                <a class="bc-item {% if nav_active == 'windows' %}active{% endif %}"
+                   href="/windows" role="menuitem" {% if nav_active == 'windows' %}aria-current="page"{% endif %}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9.5 6 4h12l2.5 5.5"/><path d="M5 9.5V20h14V9.5"/><path d="M9.5 20v-5.5h5V20"/></svg>
+                    <span>窗口口碑</span>
+                </a>
+                <a class="bc-item {% if nav_active == 'survey' %}active{% endif %}"
+                   href="/survey" role="menuitem" {% if nav_active == 'survey' %}aria-current="page"{% endif %}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4.5" width="14" height="16" rx="2"/><path d="M9 3h6v3H9z"/><path d="M9 11h6M9 14.5h6M9 18h3.5"/></svg>
+                    <span>调查问卷</span>
+                </a>
+            </nav>
         </div>
     </div>
 </header>

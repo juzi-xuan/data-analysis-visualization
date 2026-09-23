@@ -196,9 +196,22 @@ def ensure_survey_db():
             image_path TEXT,
             description TEXT,
             submitter_id TEXT,
-            submit_date TEXT NOT NULL
+            submit_date TEXT NOT NULL,
+            store_image_path TEXT
         )
     """)
+
+    # 迁移：老表没有 store_image_path 列就加上
+    cursor = conn.execute("PRAGMA table_info(custom_dishes)")
+    existing_cols = [row[1] for row in cursor.fetchall()]
+    if "store_image_path" not in existing_cols:
+        conn.execute("ALTER TABLE custom_dishes ADD COLUMN store_image_path TEXT")
+
+    # 给 (store_name, dish_name) 加唯一约束（兼容创建新表时一起建）
+    try:
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_custom_store_dish ON custom_dishes (store_name, dish_name)")
+    except sqlite3.OperationalError:
+        pass
 
     # ========== 菜品展示图（一道菜一张，先到先得） ==========
     conn.execute("""
@@ -315,31 +328,148 @@ def save_survey_responses(responses: list, submitter_id: str = None) -> int:
 
 
 def load_custom_dishes() -> list:
-    """从 custom_dishes 表读取所有用户添加的餐品，返回 list[dict]"""
+    """从 custom_dishes 表读取所有用户添加的餐品，按店分组返回 list[store_dict]
+
+    每个 store_dict 结构：
+    {
+        "store_name": str,
+        "address": str,
+        "cuisine": str,
+        "store_image_path": str,
+        "store_description": str,   # 首道添加的人写的介绍
+        "first_submit_date": str,
+        "dishes": [
+            {"id", "dish_name", "image_path", "description", "submit_date"},
+            ...
+        ]
+    }
+    """
     ensure_survey_db()
     conn = sqlite3.connect(_DB_PATH)
     try:
         rows = conn.execute(
-            "SELECT id, store_name, address, dish_name, cuisine, image_path, description, submit_date "
-            "FROM custom_dishes ORDER BY id DESC"
+            "SELECT id, store_name, address, dish_name, cuisine, image_path, "
+            "description, submit_date, store_image_path "
+            "FROM custom_dishes ORDER BY store_name, id"
         ).fetchall()
     finally:
         conn.close()
 
-    result = []
+    stores = {}  # store_name -> store_dict
     for r in rows:
-        result.append({
-            "id": r[0],
-            "store_name": r[1],
-            "address": r[2] or "",
-            "dish_name": r[3],
-            "cuisine": r[4] or "其他",
-            "image_path": r[5] or "",
-            "description": r[6] or "",
-            "submit_date": r[7],
-            "canteen": "其他",
+        id_, store_name, address, dish_name, cuisine, image_path, desc, submit_date, store_img = r
+        if store_name not in stores:
+            stores[store_name] = {
+                "store_name": store_name,
+                "address": address or "",
+                "cuisine": cuisine or "其他",
+                "store_image_path": store_img or "",
+                "store_description": desc or "",
+                "first_submit_date": submit_date,
+                "dishes": [],
+            }
+        # 后续同店新增的菜如果补了 address/store_image，也更新
+        store = stores[store_name]
+        if address and not store["address"]:
+            store["address"] = address
+        if store_img and not store["store_image_path"]:
+            store["store_image_path"] = store_img
+
+        store["dishes"].append({
+            "id": id_,
+            "dish_name": dish_name,
+            "image_path": image_path or "",
+            "description": desc or "",
+            "submit_date": submit_date,
         })
-    return result
+
+    return list(stores.values())
+
+
+def search_custom_stores(keyword: str = "", limit: int = 15) -> list:
+    """搜索匹配的自定义店子（按店名模糊匹配），按 store_name 去重"""
+    ensure_survey_db()
+    conn = sqlite3.connect(_DB_PATH)
+    try:
+        if keyword:
+            rows = conn.execute(
+                "SELECT store_name, address, cuisine, store_image_path "
+                "FROM custom_dishes "
+                "WHERE store_name LIKE ? "
+                "ORDER BY store_name, id LIMIT ?",
+                (f"%{keyword}%", limit * 3),  # 多取一点保证过滤去重后够 limit 条
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT store_name, address, cuisine, store_image_path "
+                "FROM custom_dishes "
+                "ORDER BY store_name, id LIMIT ?",
+                (limit * 3,),
+            ).fetchall()
+    finally:
+        conn.close()
+
+    # 按 store_name 去重：取第一条非空 address/cuisine/store_image_path
+    seen = {}
+    for name, addr, cuisine, img in rows:
+        if name not in seen:
+            seen[name] = {
+                "store_name": name,
+                "address": addr or "",
+                "cuisine": cuisine or "其他",
+                "store_image_path": img or "",
+            }
+        else:
+            s = seen[name]
+            if addr and not s["address"]:
+                s["address"] = addr
+            if img and not s["store_image_path"]:
+                s["store_image_path"] = img
+
+    return list(seen.values())[:limit]
+
+
+def get_store_by_name(store_name: str) -> dict | None:
+    """按精确店名查自定义店（用于加菜时校验店是否存在）"""
+    ensure_survey_db()
+    conn = sqlite3.connect(_DB_PATH)
+    try:
+        row = conn.execute(
+            "SELECT store_name, address, cuisine, store_image_path "
+            "FROM custom_dishes WHERE store_name = ? LIMIT 1",
+            (store_name,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return None
+    return {
+        "store_name": row[0],
+        "address": row[1] or "",
+        "cuisine": row[2] or "其他",
+        "store_image_path": row[3] or "",
+    }
+
+
+def ensure_store_image(store_name: str, image_path: str) -> bool:
+    """给某个店子补一张店图（如果还没有），更新所有同店记录的 store_image_path"""
+    ensure_survey_db()
+    conn = sqlite3.connect(_DB_PATH)
+    try:
+        existing = conn.execute(
+            "SELECT 1 FROM custom_dishes WHERE store_name = ? AND store_image_path IS NOT NULL AND store_image_path != '' LIMIT 1",
+            (store_name,),
+        ).fetchone()
+        if existing:
+            return False
+        conn.execute(
+            "UPDATE custom_dishes SET store_image_path = ? WHERE store_name = ? AND (store_image_path IS NULL OR store_image_path = '')",
+            (image_path, store_name),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 
 def load_survey_data() -> pd.DataFrame:

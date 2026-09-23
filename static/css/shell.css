@@ -594,6 +594,84 @@ svg { display: block; }
     .app-user-greet { display: none; }
 }
 
+/* ---- ≤520px：小屏手机专用 ---- */
+@media (max-width: 520px) {
+    .app-body { padding: 12px 12px 32px; gap: 12px; }
+    .app-main { gap: 12px; }
+    .intro { padding: 16px 18px; }
+    .intro h1 { font-size: 17px; }
+    .block { padding: 16px; }
+    .block-title { font-size: 16px; }
+    .block-sub { font-size: 12px; }
+    .brand-name { font-size: 16px; }
+    .app-topbar-inner { padding: 8px 14px; height: 52px; }
+    /* 侧栏（桌面是左边栏，900px 断点已经堆到顶部横排，手机保持横排） */
+    .nav { flex-direction: row !important; flex-wrap: nowrap; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+    .nav-item { flex: 0 0 auto; min-height: 42px; padding: 0 14px; }
+    .nav-item span { font-size: 13px; }
+    .app-sidebar-title { display: none; }
+}
+
+/* ==========================================================
+   顶栏面包屑下拉菜单（所有屏幕尺寸都生效）
+   ========================================================== */
+.app-nav-breadcrumb { position: relative; }
+
+.bc-trigger {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    border: 0; border-radius: 10px;
+    background: transparent;
+    color: var(--fg, #333);
+    cursor: pointer;
+    transition: background .16s, color .16s;
+}
+.bc-trigger:hover { background: #F5EFE8; }
+.bc-trigger svg { width: 20px; height: 20px; }
+
+.bc-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 180px;
+    background: var(--card, #fff);
+    border: 1px solid var(--border, #e8e0d4);
+    border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(40, 20, 10, .12);
+    padding: 6px;
+    display: none;
+    z-index: 200;
+    animation: bcPop .16s ease-out;
+}
+.bc-menu.show { display: block; }
+
+@keyframes bcPop {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.bc-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    color: var(--fg, #333);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background .14s, color .14s;
+}
+.bc-item svg { width: 18px; height: 18px; color: var(--fg-muted, #888); flex-shrink: 0; }
+.bc-item:hover { background: var(--primary-soft, #FFF4E6); }
+.bc-item:hover svg { color: var(--primary-strong, #C2410C); }
+.bc-item.active {
+    background: var(--primary-soft, #FFF4E6);
+    color: var(--primary-strong, #C2410C);
+    font-weight: 600;
+}
+.bc-item.active svg { color: var(--primary-strong, #C2410C); }
+
 /* 尊重系统的「减少动态效果」偏好 */
 @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }

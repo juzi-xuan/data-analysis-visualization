@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>调查问卷 · 校园食堂</title>
 
     <!-- 加载顺序有讲究：
@@ -35,6 +35,112 @@
 
         @media (max-width: 900px) {
             .window-cards { grid-template-columns: 1fr; }
+        }
+
+        /* --- 自定义弹窗里的新样式 --- */
+        .custom-store-hint {
+            margin-top: 6px;
+            padding: 8px 12px;
+            font-size: 12.5px;
+            border-radius: var(--radius-sm);
+            background: #F0F9F1;
+            color: #2D8A44;
+            line-height: 1.5;
+        }
+        .custom-store-hint.is-new { background: #FFF4E6; color: #C66A00; }
+
+        /* ---------- 弹窗顶部可点击图片区 ---------- */
+        .store-image-hero {
+            position: relative;
+            width: 100%;
+            height: 140px;
+            margin-bottom: 16px;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            cursor: pointer;
+            background: #FFF4E6;
+            border: 2px dashed #E5C9A8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color .18s, background .18s;
+        }
+        .store-image-hero:hover {
+            border-color: var(--primary-strong);
+            background: #FFECDA;
+        }
+        .store-image-hero__empty {
+            text-align: center;
+            color: var(--fg-muted);
+            pointer-events: none;
+        }
+        .store-image-hero__emoji {
+            display: block;
+            font-size: 36px;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+        .store-image-hero__hint {
+            display: block;
+            font-size: 13px;
+        }
+        .store-image-hero__img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            pointer-events: none;
+        }
+        /* 有图时叠加半透明蒙层 + 改 hover 状态，暗示"可以重新上传" */
+        .store-image-hero.has-image::after {
+            content: "📷 点击更换";
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            transition: opacity .18s;
+            pointer-events: none;
+        }
+        .store-image-hero.has-image:hover::after { opacity: 1; }
+
+        /* ---------- 全局 Toast 通知 ---------- */
+        .app-toast {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            z-index: 9999;
+            min-width: 200px;
+            max-width: 380px;
+            padding: 12px 20px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            line-height: 1.5;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+            opacity: 0;
+            transition: opacity .22s ease, transform .22s ease;
+            pointer-events: none;
+            text-align: center;
+        }
+        .app-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+        .app-toast.toast-success { background: #E7F5E9; color: #1E7B34; border: 1px solid #B5E1BD; }
+        .app-toast.toast-error   { background: #FDECEC; color: #A12828; border: 1px solid #F0B8B8; }
+        .app-toast.toast-info    { background: #E8F1FB; color: #1E4A7B; border: 1px solid #B8D4F0; }
+        .app-toast.toast-warn    { background: #FFF4E6; color: #A15C10; border: 1px solid #F0CC8E; }
+
+        /* ---- 弹窗顶部 hero 小屏优化 ---- */
+        @media (max-width: 480px) {
+            .store-image-hero { height: 100px; margin-bottom: 12px; }
+            .store-image-hero__emoji { font-size: 28px; margin-bottom: 4px; }
+            .store-image-hero__hint { font-size: 12px; }
         }
     </style>
 </head>
@@ -98,23 +204,36 @@
     <div id="custom-dish-modal" class="modal hidden">
         <div class="modal-content modal-content--custom">
             <span class="img-modal__close" id="custom-modal-close">✕</span>
-            <h2>✨ 添加你喜欢的餐品</h2>
-            <p class="custom-form-tip">告诉大家还有什么好吃的！其他同学也能评价和投票 🎉</p>
+
+            <!-- 顶部可点击图片区（上传店子图片入口） -->
+            <div class="store-image-hero" id="store-image-hero" title="点击上传店子图片">
+                <div class="store-image-hero__empty">
+                    <span class="store-image-hero__emoji">🏪</span>
+                    <span class="store-image-hero__hint">📷 点击上传店子图片</span>
+                </div>
+                <img class="store-image-hero__img" id="store-image-hero-img" alt="店子图片" hidden>
+            </div>
+            <input type="file" accept="image/*" id="custom-store-image-input" hidden>
+
+            <h2>🍽️ 添加一家店的某道菜</h2>
+            <p class="custom-form-tip">好的坏的都可以说，其他同学也能看到你的评价和投票～</p>
 
             <form id="custom-dish-form" enctype="multipart/form-data">
                 <div class="custom-form-row">
                     <label>🏪 店名 <span class="required">*</span></label>
-                    <input type="text" name="store_name" required placeholder="例如：张亮麻辣烫（南门）" maxlength="50">
+                    <input type="text" name="store_name" id="custom-store-name" required placeholder="例如：BT烤翅" maxlength="50" list="existing-stores-list">
+                    <datalist id="existing-stores-list"></datalist>
+                    <div class="custom-store-hint" id="custom-store-hint" hidden></div>
                 </div>
                 <div class="custom-form-row">
                     <label>🍜 餐品名 <span class="required">*</span></label>
-                    <input type="text" name="dish_name" required placeholder="例如：招牌麻辣烫（中辣）" maxlength="50">
+                    <input type="text" name="dish_name" required placeholder="例如：炒饭 / 烤鱼丸" maxlength="50">
                 </div>
-                <div class="custom-form-row">
+                <div class="custom-form-row custom-store-only">
                     <label>📍 地址</label>
                     <input type="text" name="address" placeholder="（选填）方便大家找到" maxlength="100">
                 </div>
-                <div class="custom-form-row">
+                <div class="custom-form-row custom-store-only">
                     <label>🎨 菜系类型</label>
                     <select name="cuisine">
                         <option value="其他">其他</option>
@@ -134,9 +253,9 @@
                     <textarea name="description" placeholder="（选填）说说你为什么推荐它..." maxlength="300"></textarea>
                 </div>
 
-                <!-- 图片上传（可选） -->
+                <!-- 菜品图上传（保留在表单里，因为一道菜对应一张图） -->
                 <div class="custom-form-row">
-                    <label>📷 图片（可选）</label>
+                    <label>🍽️ 菜品图片（可选）</label>
                     <div class="custom-image-upload">
                         <input type="file" name="image" accept="image/*" id="custom-image-input">
                         <div class="custom-image-preview" id="custom-image-preview" style="display:none;">
@@ -147,7 +266,7 @@
                 </div>
 
                 <!-- 初始评价（可选，发布后你也可以评价它） -->
-                <div class="custom-form-section-title">你也可以给自己添加的餐品打个分（选填）</div>
+                <div class="custom-form-section-title">顺便也给这道菜打个分（选填）</div>
                 <div class="custom-form-row custom-form-row--rating">
                     <span class="rating-label">满意度：</span>
                     <div class="stars" id="custom-rating-stars" data-window="__custom__">
@@ -200,8 +319,8 @@
         </div>
     </div>
 
+    <script src="/static/js/shell.js"></script>
     <script src="/static/js/survey.js"></script>
-    <script src="/static/js/auto-fill.js"></script>
 
     <script>
         // ============================================================

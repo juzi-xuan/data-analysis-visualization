@@ -671,6 +671,8 @@
 /* ========== 添加餐品弹窗 ========== */
 .modal-content--custom {
     max-width: 480px;
+    max-height: 88vh;        /* 高度限制 */
+    overflow-y: auto;        /* 内容多时内部滚动 */
     padding: 28px 32px;
     text-align: left;
     position: relative;
@@ -1346,4 +1348,40 @@
         padding: 5px 8px;
         font-size: 12px;
     }
+}
+
+/* ---- ≤480px：小屏手机补充 ---- */
+@media (max-width: 480px) {
+    /* 窗口卡片图片高度收紧（200px 在手机上太占屏） */
+    .window-card__image-wrap { height: 150px; }
+    .window-card__body { padding: 12px 14px 14px; }
+    .window-card__name { font-size: 15px; }
+    /* 食堂 tab 按钮触摸友好 */
+    .tabs button { min-height: 42px; padding: 0 14px; font-size: 13px; }
+    /* 自定义添加按钮 */
+    .custom-add-bar .btn { min-height: 44px; padding: 0 22px; font-size: 14px; }
+    /* 弹窗：手机宽度 = 视口-24px，padding 收紧 */
+    .modal-content--custom {
+        max-width: none;
+        width: calc(100vw - 24px);
+        max-height: calc(100vh - 32px);
+        padding: 20px 16px;
+        margin: 0 auto;
+    }
+    .modal-content--custom h2 { font-size: 18px; }
+    .custom-form-tip { font-size: 12.5px; margin-bottom: 14px; }
+    /* 所有输入框/按钮触摸目标至少 44px */
+    .custom-form-row input[type="text"],
+    .custom-form-row select,
+    .custom-form-row textarea {
+        min-height: 42px;
+        font-size: 16px; /* 防 iOS Safari 自动缩放 */
+    }
+    .custom-form-row textarea { min-height: 80px; }
+    .custom-form-row label { font-size: 12.5px; }
+    /* 弹窗底部按钮 */
+    .modal-buttons { gap: 8px; padding-top: 14px; }
+    .modal-buttons button { min-height: 44px; font-size: 14px; }
+    /* toast 贴边 */
+    .app-toast { right: 12px; left: 12px; top: 12px; }
 }
