@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>窗口口碑 · 校园食堂</title>
+
+    <!-- 学生端公共外壳：设计令牌 / 顶栏 / 侧栏 / 弹窗 -->
+    <link rel="stylesheet" href="/static/css/shell.css">
+
+    <style>
+        /* ==========================================================
+           窗口口碑页专属样式（公共部分都在 shell.css 里，含 .intro 说明条）
+           ========================================================== */
+
+        /* ---------- 食堂筛选标签 ---------- */
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .tab {
+            height: 32px;
+            padding: 0 16px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--card);
+            color: var(--fg-muted);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .16s, color .16s, border-color .16s;
+        }
+        .tab:hover { background: #F5EFE8; color: var(--fg); }
+        .tab.active {
+            background: var(--primary-soft);
+            border-color: #F6CFB2;
+            color: var(--primary-strong);
+            font-weight: 600;
+        }
+
+        /* ---------- 窗口列表 ---------- */
+        .win-list { display: flex; flex-direction: column; }
+
+        .win-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            width: 100%;
+            padding: 12px 8px;
+            border: 0;
+            border-top: 1px solid var(--divider);
+            border-radius: var(--radius-md);
+            background: transparent;
+            font: inherit;
+            text-align: left;
+            color: inherit;
+            cursor: pointer;
+            transition: background .16s;
+        }
+        .win-row:first-child { border-top: 0; }
+        .win-row:hover { background: #FDF9F5; }
+
+        .win-thumb { width: 56px; height: 56px; font-size: 20px; }
+
+        .win-main { flex: 1 1 auto; min-width: 0; }
+        .win-name {
+            display: block;
+            font-size: 14.5px;
+            font-weight: 600;
+            color: var(--fg);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .win-meta {
+            display: block;
+            margin-top: 3px;
+            font-size: 12.5px;
+            color: var(--fg-subtle);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .win-right {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 3px;
+        }
+        .win-score {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--fg);
+            font-variant-numeric: tabular-nums;
+        }
+        .win-go {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 12.5px;
+            color: var(--fg-subtle);
+            transition: color .16s;
+        }
+        .win-go svg { width: 13px; height: 13px; }
+        .win-row:hover .win-go { color: var(--primary-strong); }
+
+        /* ---------- 响应式 ---------- */
+        @media (max-width: 640px) {
+            .win-thumb { width: 48px; height: 48px; font-size: 17px; }
+            .win-go { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    {% include '_topbar.html' %}
+
+    <div class="app-body">
+
+        {% include '_sidebar.html' %}
+
+        <main class="app-main">
+
+            <!-- 顶部说明 -->
+            <section class="intro">
+                <h1>多维度评价 · 真实同学反馈</h1>
+                <p>帮你找到最好吃的窗口和菜品</p>
+            </section>
+
+            <!-- 窗口列表 -->
+            <section class="block">
+                <div class="block-head">
+                    <h2 class="block-title">窗口口碑</h2>
+                    <span class="block-sub" id="win-count">加载中…</span>
+                </div>
+
+                <div class="tabs" id="canteen-tabs"></div>
+
+                <div class="win-list" id="win-list">
+                    <div class="loading-line">正在加载窗口列表…</div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    {% include '_modal.html' %}
+
+    <script src="/static/js/shell.js"></script>
+    <script src="/static/js/windows.js"></script>
+</body>
+</html>

@@ -390,3 +390,7 @@ WINDOWS = [
 
 # 窗口名 → 菜系类型 的快速查找字典
 WINDOW_CUISINE_MAP = {w["name"]: w["cuisine"] for w in WINDOWS}
+
+# 窗口名 → 完整配置 的快速查找字典
+# 首页/窗口口碑页要拿食堂、菜系、图片，用这个一次取全
+WINDOW_INFO_MAP = {w["name"]: w for w in WINDOWS}

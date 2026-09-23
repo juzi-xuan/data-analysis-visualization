@@ -3,50 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍱 食堂窗口评价问卷</title>
+    <title>调查问卷 · 校园食堂</title>
+
+    <!-- 加载顺序有讲究：
+         style.css → 问卷页原来依赖它的基础样式，先加载
+         shell.css → 设计令牌 / 顶栏 / 侧栏，覆盖上面 body 等全局样式
+         survey.css → 问卷页自己的组件样式，优先级最高 -->
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/survey.css">
+
+    <style>
+        /* ==========================================================
+           问卷页专属样式（公共部分都在 shell.css 里）
+           ========================================================== */
+
+        /* ---------- 顶栏搜索：过滤窗口卡片 ---------- */
+        /* 用 !important 只做「加隐藏」，不做「取消隐藏」，
+           这样不会和 survey.js 自己的显示/隐藏逻辑打架 */
+        .window-card.search-hidden { display: none !important; }
+
+        .search-empty {
+            padding: 36px 20px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--fg-subtle);
+        }
+
+        /* 卡片网格在 .block 里，把内边距收一点，避免和卡片 padding 叠加过多 */
+        .window-cards { padding: 4px 0; }
+
+        @media (max-width: 900px) {
+            .window-cards { grid-template-columns: 1fr; }
+        }
+    </style>
 </head>
-<body class="survey-body">
+<body>
 
-    <!-- 顶部标题栏 -->
-    <header class="survey-header">
-        <h1>🍱 食堂窗口评价问卷</h1>
-        <p class="survey-intro">
-            请对每个食堂窗口进行评价，帮助我们改进食堂质量 🙏<br>
-            <span class="survey-tip">所有评价都是选填的，吃过哪个评哪个就好～</span>
-        </p>
-        <a href="/" class="back-to-dashboard">← 返回看板</a>
-    </header>
+    {% include '_topbar.html' %}
 
-    <!-- 食堂分类切换 tab -->
-    <div class="canteen-tabs">
-        <button type="button" class="canteen-tab active" data-canteen="all">🍽️ 全部食堂</button>
-        <button type="button" class="canteen-tab" data-canteen="一食堂">🏫 一食堂</button>
-        <button type="button" class="canteen-tab" data-canteen="二食堂">🏫 二食堂</button>
-        <button type="button" class="canteen-tab" data-canteen="其他">✨ 其他</button>
+    <div class="app-body">
+
+        {% include '_sidebar.html' %}
+
+        <main class="app-main">
+
+            <!-- 说明条 -->
+            <section class="intro">
+                <h1>食堂窗口评价问卷</h1>
+                <p>请对食堂窗口进行评价，帮助同学选择</p>
+                <p class="intro-sub">所有评价都是选填的，吃过哪个评哪个就好～</p>
+            </section>
+
+            <!-- 问卷主体 -->
+            <section class="block">
+
+                <!-- 食堂分类切换 tab -->
+                <div class="canteen-tabs">
+                    <button type="button" class="canteen-tab active" data-canteen="all">全部食堂</button>
+                    <button type="button" class="canteen-tab" data-canteen="一食堂">一食堂</button>
+                    <button type="button" class="canteen-tab" data-canteen="二食堂">二食堂</button>
+                    <button type="button" class="canteen-tab" data-canteen="其他">其他</button>
+                </div>
+
+                <!-- "其他" tab 专用：添加餐品按钮（默认隐藏，选中"其他"时显示） -->
+                <div class="custom-add-bar" id="custom-add-bar" style="display:none;">
+                    <button type="button" class="btn btn-primary" id="open-custom-form">
+                        ➕ 添加我喜欢的餐品
+                    </button>
+                </div>
+
+                <form id="survey-form">
+                    <!-- JS 动态生成窗口卡片 -->
+                    <div id="window-cards" class="window-cards"></div>
+
+                    <!-- 搜索无结果时的提示（由底部脚本控制显隐） -->
+                    <div class="search-empty" id="search-empty" hidden>
+                        没有找到匹配的窗口，换个关键词试试
+                    </div>
+
+                    <!-- 提交按钮区 -->
+                    <div class="survey-submit-bar">
+                        <button type="button" id="reset-btn" class="btn btn-secondary">🔄 重置所有</button>
+                        <button type="submit" id="submit-btn" class="btn btn-primary">📨 提交评价</button>
+                    </div>
+                </form>
+
+            </section>
+
+        </main>
     </div>
-
-    <!-- "其他" tab 专用：添加餐品按钮（默认隐藏，选中"其他"时显示） -->
-    <div class="custom-add-bar" id="custom-add-bar" style="display:none;">
-        <button type="button" class="btn btn-primary" id="open-custom-form">
-            ➕ 添加我喜欢的餐品
-        </button>
-    </div>
-
-    <!-- 问卷主内容 -->
-    <main class="survey-main">
-        <form id="survey-form">
-            <!-- JS 动态生成 8 个窗口卡片 -->
-            <div id="window-cards" class="window-cards"></div>
-
-            <!-- 提交按钮区 -->
-            <div class="survey-submit-bar">
-                <button type="button" id="reset-btn" class="btn btn-secondary">🔄 重置所有</button>
-                <button type="submit" id="submit-btn" class="btn btn-primary">📨 提交评价</button>
-            </div>
-        </form>
-    </main>
 
     <!-- 添加餐品弹窗 -->
     <div id="custom-dish-modal" class="modal hidden">
@@ -156,5 +202,47 @@
 
     <script src="/static/js/survey.js"></script>
     <script src="/static/js/auto-fill.js"></script>
+
+    <script>
+        // ============================================================
+        // 顶栏搜索：过滤窗口卡片
+        // 这里用 MutationObserver 而不是一次性绑定，是因为 survey.js
+        // 每次切换食堂 tab 都会把卡片整个重建一遍（renderWindowCards），
+        // 挂在卡片上的过滤会被一起清掉。
+        // ============================================================
+        (function () {
+            var input = document.getElementById("search-input");
+            var grid = document.getElementById("window-cards");
+            var emptyHint = document.getElementById("search-empty");
+            if (!input || !grid) return;
+
+            function applyFilter() {
+                var q = input.value.trim().toLowerCase();
+                var visible = 0;
+
+                grid.querySelectorAll(".window-card").forEach(function (card) {
+                    // 匹配范围：窗口名 + 菜系 + 食堂标签
+                    var parts = [];
+                    var nameEl = card.querySelector(".window-card__name");
+                    var cuisineEl = card.querySelector(".window-card__cuisine");
+                    var canteenEl = card.querySelector(".window-card__canteen-tag");
+                    if (nameEl) parts.push(nameEl.textContent);
+                    if (cuisineEl) parts.push(cuisineEl.textContent);
+                    if (canteenEl) parts.push(canteenEl.textContent);
+
+                    var hit = !q || parts.join(" ").toLowerCase().indexOf(q) >= 0;
+                    card.classList.toggle("search-hidden", !hit);
+                    if (hit) visible++;
+                });
+
+                // 只在「有关键词且一条都没匹配上」时给提示，
+                // 否则某个食堂本来就空的时候会误报
+                if (emptyHint) emptyHint.hidden = !q || visible > 0;
+            }
+
+            input.addEventListener("input", applyFilter);
+            new MutationObserver(applyFilter).observe(grid, { childList: true, subtree: true });
+        })();
+    </script>
 </body>
 </html>

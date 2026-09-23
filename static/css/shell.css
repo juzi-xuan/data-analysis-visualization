@@ -1,0 +1,600 @@
+/* ==========================================================
+   学生端公共外壳样式
+   —— 顶栏 / 侧边栏 / 设计令牌 / 窗口详情弹窗
+   被 templates/index.html 和 templates/windows.html 共用。
+   注意：这是学生端专用外壳，分析看板 analysis.html 仍用旧的 style.css。
+   ========================================================== */
+
+/* ==========================================================
+   1. 设计令牌（Design Tokens）
+   全站颜色、圆角、阴影、尺寸都从这里取值。改主题只改这一段。
+   ========================================================== */
+:root {
+    /* 颜色：暖白底 + 暖白卡 + 单一的橙色强调
+       大面积不要用纯白 —— 纯白又亮又单调。
+       这里统一掺一点点暖橙调，肉眼看不出色相，但整页会柔和很多。 */
+    --bg:              #F8F2EA;   /* 页面底色：暖米白 */
+    --bg-wash:         rgba(234, 88, 12, .07);  /* 页面顶部那一抹极淡的橙 */
+    --card:            #FFFCF8;   /* 卡片 / 顶栏：暖白，不是纯白 */
+    --card-soft:       #FDF6EF;   /* 卡片内的次级面：比卡片再暖一点点 */
+    --primary:         #EA580C;   /* 品牌橙：只用于强调 */
+    --primary-strong:  #C2410C;   /* 深一档的橙：白字按钮用它才够对比度 */
+    --primary-hover:   #9A3412;
+    --primary-soft:    #FFF1E6;   /* 浅橙底：标签、激活态 */
+    --positive:        #16A34A;   /* 正向（好吃/分量足） */
+    --danger:          #B42318;   /* 负向 / 警示 */
+    --star:            #F59E0B;   /* 星级 */
+
+    /* 文字层级 */
+    --fg:              #1F2937;   /* 主文字 */
+    --fg-muted:        #6B7280;   /* 次要文字 */
+    --fg-subtle:       #9CA3AF;   /* 弱化文字 */
+
+    /* 边框与阴影 */
+    --border:          #F0E7DE;   /* 细边框：用它做分层，而不是发光阴影 */
+    --divider:         #F7F1EA;
+    --shadow-card:     0 1px 3px rgba(31, 41, 55, .04), 0 1px 2px rgba(31, 41, 55, .06);
+
+    /* 形状 */
+    --radius-card:     14px;
+    --radius-md:       10px;
+    --radius-sm:       8px;
+
+    /* 尺寸 */
+    --topbar-h:        60px;
+    --sidebar-w:       200px;
+    --gutter:          24px;
+
+    /* ------------------------------------------------------
+       整页宽度约束
+       顶栏和主体必须共用同一个值，否则窗口一宽，
+       两者左边缘就会错位（品牌贴最左、导航被推向中间）。
+       ------------------------------------------------------ */
+    --shell-max:       1280px;
+}
+
+/* ==========================================================
+   2. 基础重置
+   ========================================================== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    /* 中文字体走系统栈 */
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+                 "HarmonyOS Sans SC", "Microsoft YaHei", "Noto Sans SC",
+                 "Helvetica Neue", Arial, sans-serif;
+    background:
+        /* 顶部一抹极淡的橙。用 radial-gradient 而不是纯色，
+           边缘会自动淡出到透明，不会留下硬边。 */
+        radial-gradient(1200px 460px at 10% -6%, var(--bg-wash), transparent 70%),
+        var(--bg);
+    color: var(--fg);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+}
+
+svg { display: block; }
+
+/* 评分、票数、价格等数字纵向对齐 */
+.num { font-variant-numeric: tabular-nums; }
+
+/* 星级图标：先给默认尺寸，否则脱离上下文时 SVG 会撑到浏览器默认大小 */
+.i-star {
+    width: 12px;
+    height: 12px;
+    color: var(--star);
+    flex-shrink: 0;
+}
+
+/* 键盘导航可见的焦点圈 */
+:focus-visible {
+    outline: 2px solid var(--primary-strong);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* 仅供屏幕阅读器：视觉上隐藏，但读屏软件能读到 */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* ==========================================================
+   3. 顶部栏：logo + 标题 / 搜索 / 用户
+   ========================================================== */
+.app-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+}
+
+/* 顶栏内容跟主体共用同一宽度约束 → 左边缘对齐 */
+.app-topbar-inner {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;   /* 让搜索框真正居中 */
+    align-items: center;
+    gap: 16px;
+    height: var(--topbar-h);
+    max-width: var(--shell-max);
+    margin: 0;                             /* 整体靠左，不居中 */
+    padding: 0 var(--gutter);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-self: start;
+    text-decoration: none;
+    color: var(--fg);
+}
+.brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: #2B2118;
+    color: #FFB37A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.brand-mark svg { width: 19px; height: 19px; }
+.brand-name {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .01em;
+    white-space: nowrap;
+}
+
+.app-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 400px;
+    max-width: 100%;
+    height: 38px;
+    padding: 0 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    transition: background .18s, border-color .18s;
+}
+.app-search:focus-within {
+    background: var(--card);
+    border-color: #EFC4A6;
+}
+.app-search svg {
+    width: 16px;
+    height: 16px;
+    color: var(--fg-subtle);
+    flex-shrink: 0;
+}
+.app-search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 13.5px;
+    color: var(--fg);
+}
+.app-search input::placeholder { color: var(--fg-subtle); }
+
+.app-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-self: end;
+}
+.app-user-greet {
+    font-size: 13px;
+    color: var(--fg-muted);
+    white-space: nowrap;
+}
+.app-user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary-soft);
+    color: var(--primary-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+/* ==========================================================
+   4. 主体：左侧导航 + 内容区
+   ========================================================== */
+.app-body {
+    display: flex;
+    align-items: flex-start;   /* 让侧边栏不被拉伸，position:sticky 才生效 */
+    gap: var(--gutter);
+    max-width: var(--shell-max);
+    margin: 0;                 /* 与顶栏一致：整体靠左 */
+    padding: 22px var(--gutter) 48px;
+}
+
+.app-sidebar {
+    position: sticky;
+    top: calc(var(--topbar-h) + 22px);
+    flex: 0 0 var(--sidebar-w);
+}
+
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 42px;
+    padding: 0 12px;
+    border-radius: var(--radius-md);
+    color: var(--fg-muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background .16s, color .16s;
+}
+.nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.nav-item:hover { background: #F5EFE8; color: var(--fg); }
+.nav-item.active {
+    background: var(--primary-soft);
+    color: var(--primary-strong);
+    font-weight: 600;
+}
+
+.app-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* ==========================================================
+   5. 通用内容块 / 卡片
+   ========================================================== */
+/* 页面顶部说明条（窗口口碑页 / 问卷页共用） */
+.intro {
+    padding: 20px 24px;
+    background: var(--primary-soft);
+    border-radius: var(--radius-card);
+}
+.intro h1 {
+    font-size: 19px;
+    font-weight: 700;
+    color: #7A3E12;
+}
+.intro p {
+    margin-top: 4px;
+    font-size: 13px;
+    color: #8A4B22;
+}
+.intro .intro-sub {
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: #9A5A2E;
+}
+
+.block {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    padding: 20px;
+}
+.block-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.block-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--fg);
+}
+.block-sub {
+    font-size: 12.5px;
+    color: var(--fg-subtle);
+}
+
+/* ----------------------------------------------------------
+   缩略图：颜色块垫底（基于菜名 hash 生成 HSL 色），
+   图片加载成功就盖住它，404 时 JS 会移除 img 露出颜色块。
+   所以永远不会出现裂图图标。
+   ---------------------------------------------------------- */
+.thumb {
+    position: relative;
+    flex-shrink: 0;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+}
+.thumb > span:first-child {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    font-size: 14px;
+    line-height: 1;
+    user-select: none;
+}
+.thumb img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 空状态 */
+.empty {
+    padding: 40px 20px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--fg-subtle);
+}
+.empty svg {
+    width: 26px;
+    height: 26px;
+    margin: 0 auto 10px;
+    color: #DDD4CA;
+}
+.empty a { color: var(--primary-strong); }
+
+/* 加载中的一行提示 */
+.loading-line {
+    padding: 24px 0;
+    text-align: center;
+    font-size: 13px;
+    color: var(--fg-subtle);
+}
+
+/* ==========================================================
+   6. 窗口详情弹窗
+   ========================================================== */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(28, 16, 8, .45);
+}
+.modal-overlay.show { display: flex; }
+
+.modal-box {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 560px;
+    max-height: 86vh;
+    /* 这里不再自己滚动，交给内层 .modal-scroll。
+       关闭按钮在滚动层外面，所以内容滚到底也一直固定在右上角。 */
+    overflow: hidden;
+    background: var(--card);
+    border-radius: var(--radius-card);
+    box-shadow: 0 20px 50px rgba(28, 12, 4, .25);
+}
+
+/* 真正滚动的那一层（关闭按钮是它的兄弟节点，不会被滚走） */
+.modal-scroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.modal-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 2;                 /* 盖在内容之上，滚动时不会被正文压住 */
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: #F3EBE1;
+    color: #8A8078;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background .16s, color .16s;
+}
+.modal-close:hover { background: #EFE7DD; color: var(--fg); }
+.modal-close svg { width: 15px; height: 15px; }
+
+.modal-window-header { padding: 24px 24px 0; }
+.modal-window-score {
+    font-size: 34px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--primary-strong);
+    font-variant-numeric: tabular-nums;
+}
+.modal-window-score small {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--fg-subtle);
+}
+.modal-window-name {
+    margin-top: 2px;
+    font-size: 16px;
+    font-weight: 600;
+}
+.modal-window-meta {
+    margin-top: 3px;
+    font-size: 12.5px;
+    color: var(--fg-subtle);
+}
+#modal-body { padding: 18px 24px 24px; }
+
+/* 弹窗内的小节标题 */
+.sec-label {
+    margin-bottom: 10px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--fg);
+}
+.sec-gap { height: 18px; }
+
+/* 维度评分条 */
+.dim-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 12.5px;
+}
+.dim-label { flex: 0 0 60px; color: var(--fg-muted); }
+.dim-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: #F3EDE6;
+    border-radius: 999px;
+    overflow: hidden;
+}
+.dim-bar { height: 100%; border-radius: 999px; }
+.dim-good { background: var(--positive); }
+.dim-mid  { background: var(--star); }
+.dim-bad  { background: var(--danger); }
+.dim-score {
+    flex: 0 0 34px;
+    text-align: right;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* 推荐菜品 */
+.dish-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 12px;
+    margin-bottom: 6px;
+    border-radius: var(--radius-md);
+    background: var(--card-soft);
+    font-size: 13px;
+}
+.dish-item-name { font-weight: 600; }
+.dish-item-info {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--primary-strong);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* 同学反馈的问题标签 */
+.problem-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    margin: 0 6px 6px 0;
+    border-radius: 7px;
+    background: #FDECEC;
+    color: var(--danger);
+    font-size: 12px;
+}
+
+/* 评价明细列表 */
+.review-list {
+    max-height: 260px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+.review-row {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--divider);
+    font-size: 12.5px;
+}
+.review-row:last-child { border-bottom: 0; }
+.review-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 3px;
+}
+.review-dish { font-weight: 600; color: var(--fg); }
+.review-score {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+/* 颜色由 JS 按分数内联设置（>=4 绿 / >=3 橙 / 其余红） */
+.review-score .i-star { color: currentColor; }
+.review-price {
+    color: var(--fg-subtle);
+    font-weight: 500;
+    margin-left: 4px;
+}
+.review-comment { color: var(--fg-muted); margin-bottom: 3px; }
+.review-date { color: var(--fg-subtle); font-size: 11.5px; }
+
+/* ==========================================================
+   7. 响应式
+   ========================================================== */
+@media (max-width: 900px) {
+    .app-body {
+        flex-direction: column;
+        /* 必须改成 stretch：横向布局时用 flex-start 是为了让侧边栏不拉伸
+           （否则 position:sticky 会失效），但换成纵向后 flex-start 意味着
+           「子项宽度 = 内容宽度」，长菜名会把整页顶出横向滚动条。 */
+        align-items: stretch;
+        gap: 16px;
+        padding: 16px;
+    }
+    .app-sidebar {
+        position: static;
+        flex: none;
+        width: 100%;
+    }
+    .nav { flex-direction: row; gap: 8px; }
+    .nav-item { flex: 0 0 auto; }
+}
+
+@media (max-width: 760px) {
+    .app-topbar-inner {
+        display: flex;
+        flex-wrap: wrap;
+        height: auto;
+        padding: 10px 16px;
+        gap: 10px;
+    }
+    .brand { flex: 1 1 auto; }
+    .app-user { margin-left: auto; }
+    .app-search { order: 3; flex: 1 1 100%; width: auto; }
+    .app-user-greet { display: none; }
+}
+
+/* 尊重系统的「减少动态效果」偏好 */
+@media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+}

@@ -3,108 +3,42 @@
    与看板保持一致的橙黄色主题
    ============================================= */
 
-/* 页面整体 */
-.survey-body {
-    background: #f5f1eb;
-    min-height: 100vh;
-}
+/* 说明：页面的顶栏 / 侧边栏 / 设计令牌 / 窗口详情弹窗
+   已统一交给 static/css/shell.css 管理。
+   原来这里的「橙色渐变大标题栏 + 悬浮 tab + 居中容器」布局已移除。 */
 
-/* 顶部标题栏 */
-.survey-header {
-    background: linear-gradient(135deg, #FF6B35, #FFB347);
-    color: #fff;
-    padding: 32px 24px 36px;
-    text-align: center;
-    position: relative;
-    box-shadow: 0 2px 12px rgba(255, 107, 53, 0.3);
-}
-
-.survey-header h1 {
-    font-size: 28px;
-    font-weight: 700;
-    margin-bottom: 12px;
-    letter-spacing: 1px;
-}
-
-.survey-intro {
-    font-size: 14px;
-    opacity: 0.95;
-    line-height: 1.8;
-}
-
-.survey-tip {
-    display: inline-block;
-    background: rgba(255, 255, 255, 0.25);
-    padding: 4px 14px;
-    border-radius: 16px;
-    margin-top: 8px;
-    font-size: 12px;
-}
-
-.back-to-dashboard {
-    position: absolute;
-    left: 24px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #fff;
-    text-decoration: none;
-    font-size: 13px;
-    padding: 6px 14px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 20px;
-    transition: background 0.2s;
-}
-
-.back-to-dashboard:hover {
-    background: rgba(255, 255, 255, 0.35);
-}
-
-/* 问卷主体 */
-.survey-main {
-    max-width: 1100px;
-    margin: -20px auto 0;
-    padding: 0 24px 60px;
-    position: relative;
-    z-index: 10;
-}
-
-/* 食堂分类切换 tab */
+/* 食堂分类切换 tab（现在放在 .block 卡片内，不再需要居中和负边距） */
 .canteen-tabs {
-    max-width: 1100px;
-    margin: -12px auto 24px;
-    padding: 0 24px;
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
-    position: relative;
-    z-index: 11;
+    margin-bottom: 16px;
 }
 
 .canteen-tab {
-    padding: 10px 24px;
-    border: none;
-    border-radius: 24px;
-    background: rgba(255, 255, 255, 0.85);
-    color: #888;
-    font-size: 14px;
-    font-weight: 600;
+    height: 32px;
+    padding: 0 16px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--card);
+    color: var(--fg-muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    transition: all 0.25s;
-    font-family: inherit;
-    backdrop-filter: blur(4px);
+    transition: background .16s, color .16s, border-color .16s;
 }
 
 .canteen-tab:hover {
-    background: #fff;
-    color: #333;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(255, 107, 53, 0.2);
+    background: #F5EFE8;
+    color: var(--fg);
 }
 
 .canteen-tab.active {
-    background: linear-gradient(135deg, #FF6B35, #FFB347);
-    color: #fff;
-    box-shadow: 0 4px 14px rgba(255, 107, 53, 0.4);
+    background: var(--primary-soft);
+    border-color: #F6CFB2;
+    color: var(--primary-strong);
+    font-weight: 600;
 }
 
 .window-cards {
@@ -414,25 +348,24 @@
 }
 
 .btn {
-    padding: 12px 36px;
-    border: none;
-    border-radius: 10px;
+    padding: 11px 32px;
+    border: 0;
+    border-radius: 999px;
     cursor: pointer;
-    font-size: 15px;
+    font: inherit;
+    font-size: 14px;
     font-weight: 600;
-    transition: all 0.2s;
-    font-family: inherit;
+    transition: background .18s, color .18s, border-color .18s, transform .18s;
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #FF6B35, #FFB347);
+    background: var(--primary-strong);
     color: #fff;
-    box-shadow: 0 4px 14px rgba(255, 107, 53, 0.35);
 }
 
 .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(255, 107, 53, 0.5);
+    background: #A9360F;
+    transform: translateY(-1px);
 }
 
 .btn-primary:active {
@@ -440,14 +373,14 @@
 }
 
 .btn-secondary {
-    background: #fff;
-    color: #666;
-    border: 1px solid #e0d5c8;
+    background: var(--card);
+    color: var(--fg-muted);
+    border: 1px solid var(--border);
 }
 
 .btn-secondary:hover {
-    background: #f8f5f0;
-    color: #333;
+    background: #F5EFE8;
+    color: var(--fg);
 }
 
 /* 弹窗 */
@@ -731,12 +664,8 @@
 
 /* ========== "其他" tab 添加按钮条 ========== */
 .custom-add-bar {
-    max-width: 1100px;
-    margin: -8px auto 16px;
-    padding: 0 24px;
+    margin-bottom: 16px;
     text-align: center;
-    position: relative;
-    z-index: 11;
 }
 
 /* ========== 添加餐品弹窗 ========== */
@@ -1148,6 +1077,98 @@
     font-weight: 600;
     color: #555;
     gap: 8px;
+}
+
+/* 菜品名那一行要能收缩，否则长菜名会把展示图挤变形 */
+.dish-input-row__title {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* ---------- 菜品展示图 ---------- */
+.dish-media {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.dish-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* 还没有图：可点击的上传入口 */
+.dish-media--empty {
+    border: 1px dashed #E3D5C6;
+    background: var(--card);
+    color: var(--fg-subtle);
+    cursor: pointer;
+    transition: border-color .16s, color .16s, background .16s;
+}
+
+.dish-media--empty:hover {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+    color: var(--primary-strong);
+}
+
+/* 已经有图：只展示，不再提供上传入口（防止多人重复上传） */
+.dish-media--filled {
+    border: 1px solid var(--border);
+    background: var(--card-soft);
+}
+
+.dish-media.is-uploading {
+    border: 1px dashed #E3D5C6;
+    background: var(--card);
+    color: var(--fg-subtle);
+}
+
+/* 菜品列表里的小缩略图 */
+.dish-item__thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    line-height: 1;
+    user-select: none;
+}
+
+/* 菜品评价行里的颜色占位块（替代上传入口） */
+.dish-media--placeholder {
+    border: 1px solid transparent;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    font-size: 18px;
+    font-weight: 600;
+    transition: transform .12s, box-shadow .15s;
+}
+
+.dish-media--placeholder:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.dish-media--placeholder:active {
+    transform: scale(0.95);
 }
 
 .dish-input-row__actions {

@@ -296,9 +296,16 @@ function renderDishSelector(window, state) {
                 <div class="dish-list" data-role="dish-list">
                     ${window.dishes.map(d => {
                         const selected = state.dishEvaluations.some(e => e.name === d.name);
+                        // 有展示图用上传图，没有图用颜色占位（基于菜名 hash 生成）
+                        // onerror 走全局函数处理图片加载失败的 fallback
+                        const thumb = d.image
+                            ? `<img class="dish-item__thumb" src="${escapeHTML(dishThumbURL(d.image, 200))}"
+                                    alt="" loading="lazy" data-dish="${escapeHTML(d.name)}">`
+                            : dishColorBlock(d.name, 'dish-item__thumb');
                         return `
                             <label class="dish-item ${selected ? 'selected' : ''}" data-dish="${escapeHTML(d.name)}">
                                 <input type="checkbox" ${selected ? 'checked' : ''}>
+                                ${thumb}
                                 <span class="dish-item__name">${escapeHTML(d.name)}</span>
                                 <span class="dish-item__price">¥${d.price}</span>
                             </label>
@@ -311,13 +318,31 @@ function renderDishSelector(window, state) {
 
             <!-- 已选菜品的动态描述输入框 -->
             <div class="dish-inputs" data-role="dish-inputs">
-                ${state.dishEvaluations.map(de => {
-                    const price = (window.dishes.find(d => d.name === de.name) || {}).price;
-                    return renderDishInputRow(de, price);
-                }).join("")}
+                ${state.dishEvaluations.map(de =>
+                    renderDishInputRow(de, window.dishes.find(d => d.name === de.name))
+                ).join("")}
             </div>
         </div>
     `;
+}
+
+// 根据菜名生成稳定的 HSL 颜色（不同菜品颜色不同，同一菜品颜色固定）
+// 饱和度 55%、亮度 65% 保证颜色温和柔和，不刺眼
+function dishColor(name) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
+    }
+    const hue = hash % 360;
+    return `hsl(${hue}, 55%, 65%)`;
+}
+
+// 生成菜品颜色占位块的 HTML（带首字/emoji 更有辨识度）
+function dishColorBlock(name, sizeClass) {
+    const color = dishColor(name);
+    // 取菜名第一个字符（中文）或第一个字母（英文）作为标识
+    const firstChar = name ? name.trim().charAt(0) : '🍜';
+    return `<span class="${sizeClass} dish-color-ph" style="background:${color};">${escapeHTML(firstChar)}</span>`;
 }
 
 function escapeHTML(str) {
@@ -327,18 +352,42 @@ function escapeHTML(str) {
     }[c]));
 }
 
-// 渲染单个菜品的评价输入行（带快速标签 + 投票按钮）
-function renderDishInputRow(de, price) {
+// 展示图统一走后端缩略图接口（用户上传的原图可能好几 MB，
+// 这里只显示 40px，没必要下原图）
+function dishThumbURL(path, w) {
+    return path ? `/api/thumb?path=${encodeURIComponent(path)}&w=${w || 200}` : "";
+}
+
+// 渲染单个菜品的评价输入行（展示图 + 快速标签 + 投票按钮）
+// dish 是 window.dishes 里对应的那一条（含 price / image），可能为空
+function renderDishInputRow(de, dish) {
     const tags = de.tags || [];
     const voted = de.voted === true;
+    const price = dish ? dish.price : null;
+    const image = dish ? (dish.image || "") : "";
+
+    // 有上传图 → 展示图；没有 → 颜色占位块（不用等待上传）
+    // 点击颜色块仍然可以上传（双击或长按都行，这里简单做成点击提示）
+    const media = image
+        ? `<div class="dish-media dish-media--filled" data-role="dish-media">
+               <img src="${escapeHTML(dishThumbURL(image, 200))}" alt="" loading="lazy">
+           </div>`
+        : `<div class="dish-media dish-media--placeholder" data-role="dish-media"
+               style="background:${dishColor(de.name)};"
+               title="可选：点击给这道菜加一张展示图">
+               <span>${escapeHTML(de.name.trim().charAt(0))}</span>
+               <input type="file" accept="image/*" hidden>
+           </div>`;
+
     return `
         <div class="dish-input-row" data-dish="${escapeHTML(de.name)}">
             <div class="dish-input-row__label">
-                <span>📝 ${escapeHTML(de.name)}${price ? ` (¥${price})` : ''} 的评价：</span>
+                ${media}
+                <span class="dish-input-row__title">${escapeHTML(de.name)}${price ? ` (¥${price})` : ''} 的评价：</span>
                 <div class="dish-input-row__actions">
                     <button type="button"
                             class="dish-vote-btn ${voted ? 'voted' : ''}"
-                            title="${voted ? '已投过票了，点一下取消' : '投它一票！登上人气榜 🙌'}">
+                            title="${voted ? '已投过票了，点一下取消' : '投它一票，登上人气榜'}">
                         <span class="dish-vote-btn__icon">👍</span>
                         <span class="dish-vote-btn__text">${voted ? '已投票' : '投它一票'}</span>
                     </button>
@@ -364,6 +413,111 @@ function renderDishInputRow(de, price) {
         </div>
     `;
 }
+
+// ========== 菜品展示图上传 ==========
+
+// 上传成功后：写回内存数据 + 更新界面，让这道菜处处都用新图
+function applyDishImage(windowName, dishName, imagePath) {
+    const win = WINDOWS.find(w => w.name === windowName);
+    if (win) {
+        if (win.dishes) {
+            const dish = win.dishes.find(d => d.name === dishName);
+            if (dish) dish.image = imagePath;
+        }
+        // 自定义餐品：窗口本身就是那道菜
+        if (win.dish_name === dishName) win.dish_image = imagePath;
+    }
+
+    const card = document.querySelector(`.window-card[data-window="${CSS.escape(windowName)}"]`);
+    if (!card) return;
+
+    // 已选行里的展示图换成图片
+    const row = card.querySelector(`.dish-input-row[data-dish="${CSS.escape(dishName)}"]`);
+    const media = row && row.querySelector('[data-role="dish-media"]');
+    if (media) {
+        media.className = "dish-media dish-media--filled";
+        media.removeAttribute("title");
+        media.innerHTML = `<img src="${escapeHTML(dishThumbURL(imagePath, 200))}" alt="" loading="lazy">`;
+    }
+
+    // 菜品列表里也补上缩略图
+    const listItem = card.querySelector(`.dish-item[data-dish="${CSS.escape(dishName)}"]`);
+    if (listItem && !listItem.querySelector(".dish-item__thumb")) {
+        const img = document.createElement("img");
+        img.className = "dish-item__thumb";
+        img.loading = "lazy";
+        img.alt = "";
+        img.src = dishThumbURL(imagePath, 200);
+        listItem.insertBefore(img, listItem.querySelector(".dish-item__name"));
+    }
+}
+
+// 上传失败时把入口还原成可再次点击的状态
+function resetDishMedia(media) {
+    if (!media) return;
+    // 重置回颜色占位块（保留原来的背景色和首字）
+    const bg = media.style.background || dishColor(media.dataset.dish || "");
+    const firstChar = media.dataset.dish ? media.dataset.dish.trim().charAt(0) : "🍜";
+    media.className = "dish-media dish-media--placeholder";
+    media.style.background = bg;
+    media.innerHTML = `<span>${escapeHTML(firstChar)}</span><input type="file" accept="image/*" hidden>`;
+}
+
+// 用事件委托挂在 document 上：
+// 已选菜品那一块每次变动都会被整个 innerHTML 重建，
+// 把监听直接绑在 file input 上会跟着丢，委托就不会。
+document.addEventListener("change", async (e) => {
+    const input = e.target;
+    if (!input.matches || !input.matches(".dish-media--placeholder input[type='file']")) return;
+
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    const row = input.closest(".dish-input-row");
+    const card = input.closest(".window-card");
+    const media = input.closest(".dish-media");
+    if (!row || !card || !media) return;
+
+    const windowName = card.dataset.window;
+    const dishName = row.dataset.dish;
+
+    media.className = "dish-media is-uploading";
+    media.innerHTML = `<span>…</span>`;
+
+    try {
+        const fd = new FormData();
+        fd.append("window_name", windowName);
+        fd.append("dish_name", dishName);
+        fd.append("image", file);
+
+        const res = await fetch("/api/survey/dish_image", { method: "POST", body: fd });
+        const data = await res.json();
+
+        if (!data.ok) {
+            // 409 = 已经有同学传过了，后端会把现有图一起带回来，直接用
+            alert(data.msg || "上传失败");
+            if (data.image) {
+                applyDishImage(windowName, dishName, data.image);
+            } else {
+                resetDishMedia(media);
+            }
+            return;
+        }
+
+        applyDishImage(windowName, dishName, data.image);
+    } catch (err) {
+        alert("上传失败，请重试");
+        resetDishMedia(media);
+    }
+});
+
+// 颜色占位块点击 → 打开文件选择器（可选上传）
+document.addEventListener("click", (e) => {
+    const media = e.target.closest(".dish-media--placeholder");
+    if (!media) return;
+    const fileInput = media.querySelector("input[type='file']");
+    if (fileInput) fileInput.click();
+});
 
 // ========== 事件绑定 ==========
 
@@ -605,10 +759,9 @@ function updateDishInputsAndCount(card, windowName) {
     // 重新渲染动态输入框（简单粗暴但可靠）
     const inputsContainer = selector.querySelector('[data-role="dish-inputs"]');
     if (inputsContainer) {
-        inputsContainer.innerHTML = state.dishEvaluations.map(de => {
-            const price = (window.dishes.find(d => d.name === de.name) || {}).price;
-            return renderDishInputRow(de, price);
-        }).join("");
+        inputsContainer.innerHTML = state.dishEvaluations.map(de =>
+            renderDishInputRow(de, window.dishes.find(d => d.name === de.name))
+        ).join("");
 
         // 给新生成的 textarea、remove 按钮、标签 重新绑事件
         inputsContainer.querySelectorAll("textarea").forEach(ta => {
@@ -1153,6 +1306,15 @@ async function refreshSurveyWindows() {
         console.error("刷新窗口列表失败:", err);
     }
 }
+
+// ========== 图片加载失败 fallback ==========
+// 菜品列表里的缩略图（img.dish-item__thumb）加载失败 → 替换成颜色占位块
+document.addEventListener("error", (e) => {
+    const img = e.target;
+    if (!img.matches || !img.matches("img.dish-item__thumb")) return;
+    const dishName = img.dataset.dish || "";
+    img.outerHTML = dishColorBlock(dishName, 'dish-item__thumb');
+}, true);  // capture=true: error 事件不冒泡，需要在捕获阶段监听
 
 // ========== 启动 ==========
 

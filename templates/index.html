@@ -3,542 +3,373 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍱 今天吃什么 · 食堂决策助手</title>
+    <title>校园食堂 · 口碑指南</title>
 
-    <!-- ECharts CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
+    <!-- 学生端公共外壳：设计令牌 / 顶栏 / 侧栏 / 弹窗 -->
+    <link rel="stylesheet" href="/static/css/shell.css">
 
-    <link rel="stylesheet" href="/static/css/style.css">
     <style>
-        /* ===== 学生端专属样式 ===== */
-        body { background: #FFF8F0; }
+        /* ==========================================================
+           首页专属样式（公共部分都在 shell.css 里）
+           ========================================================== */
 
-        /* 顶部大标题 */
-        .hero-header {
-            text-align: center;
-            padding: 40px 20px 20px;
-            background: linear-gradient(135deg, #FF6B35 0%, #FFB347 100%);
-            color: #fff;
-        }
-        .hero-header h1 { margin: 0; font-size: 2.2rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.15); }
-        .hero-header p { margin: 8px 0 0; opacity: 0.9; font-size: 0.95rem; }
-
-        /* 区块通用 */
-        .section {
-            max-width: 900px;
-            margin: 30px auto;
-            padding: 0 16px;
-        }
-        .section-title {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #333;
-            margin: 0 0 16px;
+        /* 首页顶部大图
+           想换成自己的图片：把图片存成 static/images/hero-canteen.jpg 即可，
+           不用改任何代码。图片不存在时会显示暖色渐变兜底 —— 因为是 CSS 背景图，
+           不会出现裂图图标。
+           （注意：目录里原有的 hero.jpg 是一张无关的湖景照片，没有用它）
+        */
+        :root {
+            --hero-img: url("/static/images/hero-canteen.jpg");
         }
 
-        /* ===== 模块1：随机推荐卡片 ===== */
-        .recommend-card {
-            background: #fff;
-            border-radius: 20px;
-            padding: 24px;
-            box-shadow: 0 8px 32px rgba(255, 107, 53, 0.15);
-            text-align: center;
-            transition: transform 0.3s;
+        /* ================= 模块 1：Hero ================= */
+        .hero {
             position: relative;
             overflow: hidden;
+            border-radius: var(--radius-card);
+            min-height: 250px;
+            display: flex;
+            align-items: center;
+            padding: 32px;
+            /* 无图兜底：暖棕 → 橙，保证白字对比度达标 */
+            background: linear-gradient(120deg, #7C2D12 0%, #9A3412 58%, #C2410C 100%);
         }
-        .recommend-card::before {
-            content: "";
+        .hero-media {
             position: absolute;
-            top: -60px; right: -60px;
-            width: 180px; height: 180px;
-            background: linear-gradient(135deg, #FFE4D6, transparent);
-            border-radius: 50%;
-        }
-        .recommend-emoji { font-size: 3rem; margin-bottom: 8px; }
-        .recommend-dish { font-size: 1.8rem; font-weight: 800; color: #333; margin: 8px 0 4px; }
-        .recommend-meta {
-            display: flex;
-            justify-content: center;
-            gap: 16px;
-            flex-wrap: wrap;
-            font-size: 0.9rem;
-            color: #666;
-            margin: 12px 0;
-        }
-        .recommend-meta span { background: #FFF3EC; padding: 4px 12px; border-radius: 20px; }
-        .recommend-score { color: #FF6B35; font-weight: 700; font-size: 1.1rem; }
-        .recommend-reason {
-            font-size: 0.9rem;
-            color: #888;
-            font-style: italic;
-            padding: 8px 16px;
-            background: #FAFAFA;
-            border-radius: 10px;
-            margin: 8px auto;
-            max-width: 400px;
-        }
-        .recommend-recommend-pct {
-            color: #6AB04C;
-            font-weight: 600;
-        }
-        .btn-reroll {
-            margin-top: 16px;
-            background: linear-gradient(135deg, #FF6B35, #FFB347);
-            color: #fff;
-            border: none;
-            padding: 14px 32px;
-            border-radius: 30px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            box-shadow: 0 4px 16px rgba(255, 107, 53, 0.4);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .btn-reroll:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 107, 53, 0.5); }
-        .btn-reroll:active { transform: scale(0.96); }
-
-        /* ===== 模块2：窗口搜索框 ===== */
-        .window-search {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: #fff;
-            border-radius: 24px;
-            padding: 6px 14px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            margin-bottom: 16px;
-            max-width: 400px;
-        }
-        .window-search input {
-            flex: 1;
-            border: none;
-            outline: none;
-            font-size: 0.95rem;
-            background: transparent;
-            padding: 6px 0;
-        }
-        .window-search .search-icon { color: #FF6B35; font-size: 1rem; }
-        .window-search .clear-btn {
-            border: none;
-            background: #eee;
-            color: #888;
-            border-radius: 50%;
-            width: 22px; height: 22px;
-            font-size: 0.7rem;
-            cursor: pointer;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-        .window-search .clear-btn.show { display: flex; }
-
-        /* ===== 模块2：窗口口碑卡片 ===== */
-        .window-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 14px;
-        }
-        .window-card {
-            background: #fff;
-            border-radius: 14px;
-            padding: 16px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            border: 2px solid transparent;
-        }
-        .window-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-            border-color: #FFB347;
-        }
-        .window-card-name { font-weight: 700; color: #333; margin-bottom: 4px; font-size: 1rem; }
-        .window-card-meta { font-size: 0.8rem; color: #999; margin-bottom: 10px; }
-        .window-card-score { font-size: 1.4rem; font-weight: 800; color: #FF6B35; }
-        .window-card-score small { font-size: 0.75rem; color: #999; font-weight: normal; }
-
-        /* ===== 窗口详情弹窗 ===== */
-        .modal-overlay {
-            display: none;
-            position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
+            background-image: var(--hero-img);
+            background-size: cover;
+            background-position: center;
         }
-        .modal-overlay.show { display: flex; }
-        .modal-box {
-            background: #fff;
-            border-radius: 16px;
-            max-width: 500px;
-            width: 100%;
-            max-height: 85vh;
-            overflow-y: auto;
-            padding: 24px;
-            position: relative;
-        }
-        .modal-close {
-            position: sticky;
-            top: 0; left: auto;
-            float: right;
-            background: #fff; border: none;
-            font-size: 1.5rem; cursor: pointer; color: #999;
-            width: 36px; height: 36px;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            z-index: 10;
-            margin: -8px -8px 8px 0;
-            transition: color 0.2s, transform 0.2s;
-        }
-        .modal-close:hover { color: #FF6B35; transform: scale(1.1); }
-        .modal-window-header {
-            text-align: center;
-            padding-bottom: 16px;
-            border-bottom: 1px solid #f0f0f0;
-            margin-bottom: 16px;
-        }
-        .modal-window-score { font-size: 2.5rem; font-weight: 800; color: #FF6B35; }
-        .modal-window-name { font-size: 1.2rem; font-weight: 600; margin-top: 4px; }
-        .modal-window-meta { font-size: 0.85rem; color: #888; margin-top: 4px; }
-
-        /* 维度评分条 */
-        .dim-row {
-            display: flex; align-items: center; gap: 10px;
-            margin-bottom: 10px;
-            font-size: 0.9rem;
-        }
-        .dim-label { width: 60px; color: #666; flex-shrink: 0; }
-        .dim-bar-wrap {
-            flex: 1; height: 8px;
-            background: #f0f0f0;
-            border-radius: 4px; overflow: hidden;
-        }
-        .dim-bar {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.6s ease;
-        }
-        .dim-good { background: linear-gradient(90deg, #6AB04C, #4CAF50); }
-        .dim-mid  { background: linear-gradient(90deg, #FFB347, #FF9800); }
-        .dim-bad  { background: linear-gradient(90deg, #E85D75, #F44336); }
-        .dim-score { width: 36px; text-align: right; font-weight: 600; color: #333; }
-
-        /* 推荐菜品 */
-        .dish-item {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 10px 12px; background: #FAFAFA; border-radius: 8px;
-            margin-bottom: 8px; font-size: 0.9rem;
-        }
-        .dish-item-name { font-weight: 600; color: #333; }
-        .dish-item-info { color: #FF6B35; font-weight: 600; }
-
-        /* 问题标签 */
-        .problem-tag {
-            display: inline-block;
-            background: #FFF0F0; color: #E85D75;
-            padding: 4px 12px; border-radius: 14px;
-            font-size: 0.85rem; margin: 4px 6px 4px 0;
-        }
-
-        /* ===== 模块3：条件筛选 ===== */
-        .search-panel {
-            background: #fff;
-            border-radius: 14px;
-            padding: 20px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-        }
-        .filter-group { margin-bottom: 16px; }
-        .filter-group-label { font-size: 0.85rem; color: #888; margin-bottom: 8px; font-weight: 600; }
-        .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
-        .chip {
-            padding: 8px 16px;
-            border: 2px solid #E8E8E8;
-            border-radius: 20px;
-            font-size: 0.88rem;
-            cursor: pointer;
-            background: #fff;
-            transition: all 0.15s;
-            color: #555;
-        }
-        .chip:hover { border-color: #FFB347; color: #FF6B35; }
-        .chip.active {
-            border-color: #FF6B35;
-            background: #FFF3EC;
-            color: #FF6B35;
-            font-weight: 600;
-        }
-        .btn-search {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #FF6B35, #FFB347);
-            color: #fff; border: none; border-radius: 12px;
-            font-size: 1rem; font-weight: 600; cursor: pointer;
-            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
-        }
-
-        .result-list { margin-top: 20px; }
-        .result-item {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 14px 16px;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 1px 6px rgba(0,0,0,0.05);
-            margin-bottom: 8px;
-        }
-        .result-item-main { flex: 1; }
-        .result-item-dish { font-weight: 700; color: #333; font-size: 1rem; }
-        .result-item-window { font-size: 0.82rem; color: #999; margin-top: 2px; }
-        .result-item-right { text-align: right; }
-        .result-item-score { color: #FF6B35; font-weight: 700; font-size: 1.1rem; }
-        .result-item-price { font-size: 0.85rem; color: #666; }
-
-        .empty-state { text-align: center; padding: 40px; color: #bbb; }
-
-        /* ===== 模块2.5：餐品人气榜 ===== */
-        .popularity-card {
-            background: #fff;
-            border-radius: 16px;
-            padding: 20px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-            border: 2px solid #FFE4D6;
-        }
-        .popularity-chart {
-            width: 100%;
-            height: 320px;
-        }
-        .popularity-list {
-            display: none; /* JS 控制显示 */
-        }
-        .popularity-list.show {
-            display: block;
-        }
-        .popularity-item {
-            display: flex;
-            align-items: center;
-            padding: 12px 14px;
-            background: #FAFAFA;
-            border-radius: 10px;
-            margin-bottom: 8px;
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.15s, box-shadow 0.15s;
-        }
-        .popularity-item:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 10px rgba(255, 107, 53, 0.15);
-        }
-        /* 条形进度条背景（用伪元素实现渐变条，从左往右） */
-        .popularity-item::after {
+        /* 图片上的压暗遮罩：保证任何图片下白字都能看清 */
+        .hero-media::after {
             content: "";
             position: absolute;
-            left: 0; top: 0; bottom: 0;
-            width: var(--bar-width, 0%);
-            background: linear-gradient(90deg, var(--bar-color, #FFE4D6), transparent);
-            border-radius: 10px 0 0 10px;
-            pointer-events: none;
-            z-index: 0;
-            opacity: 0.6;
+            inset: 0;
+            background: linear-gradient(90deg,
+                        rgba(30, 14, 5, .42) 0%,
+                        rgba(30, 14, 5, .24) 58%,
+                        rgba(30, 14, 5, .10) 100%);
         }
-        .popularity-rank {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: #E8E8E8;
-            color: #999;
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 46%;
+            color: #fff;
+            align-self: flex-end;
+        }
+        .hero-content h1 {
+            font-size: 30px;
             font-weight: 700;
-            font-size: 0.85rem;
+            letter-spacing: .01em;
+        }
+        .hero-content p {
+            margin-top: 6px;
+            font-size: 13.5px;
+            color: rgba(255, 255, 255, .86);
+        }
+        .hero-cta {
+            margin-top: 22px;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            height: 42px;
+            padding: 0 22px;
+            border: 0;
+            border-radius: 999px;
+            background: var(--primary-strong);
+            color: #fff;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .18s, transform .18s;
+        }
+        .hero-cta:hover { background: #A9360F; transform: translateY(-1px); }
+        .hero-cta:active { transform: translateY(0); }
+        .hero-cta svg { width: 16px; height: 16px; }
+
+        /* ---------- 随机推荐卡片（只一张） ---------- */
+        .hero-card {
+            position: absolute;
+            right: 32px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 2;
+            width: 220px;
+            padding: 14px;
+            background: var(--card);
+            border-radius: var(--radius-card);
+            box-shadow: 0 10px 30px rgba(28, 12, 4, .28);
+        }
+        .pick-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        /* flex 子项默认 min-width:auto，不设为 0 的话
+           里面的长菜名不会出现省略号，而是把卡片撑变形 */
+        .pick-info { min-width: 0; }
+        .pick-thumb { width: 46px; height: 46px; font-size: 17px; }
+
+        .pick-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--fg);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .pick-rating {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 2px;
+            font-size: 12.5px;
+            color: var(--fg-subtle);
+        }
+        .pick-rating b {
+            color: var(--fg);
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pick-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        .tag {
+            padding: 3px 9px;
+            border-radius: var(--radius-sm);
+            background: #F6F1EA;
+            color: var(--fg-muted);
+            font-size: 11.5px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .tag-price {
+            background: var(--primary-soft);
+            color: var(--primary-strong);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pick-reason {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--divider);
+            font-size: 12.5px;
+            color: var(--fg-muted);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .pick-window {
+            margin-top: 6px;
+            font-size: 11.5px;
+            color: var(--fg-subtle);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ================= 模块 2：人气榜 ================= */
+        /* 纯展示的排行榜，不可点击 —— 窗口详情在「窗口口碑」页 */
+        .rank-list { display: flex; flex-direction: column; }
+
+        .rank-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 8px;
+            border-top: 1px solid var(--divider);
+        }
+        .rank-row:first-child { border-top: 0; }
+
+        .rank-no {
+            flex: 0 0 26px;
+            width: 26px;
+            height: 26px;
+            border-radius: var(--radius-sm);
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-right: 14px;
-            flex-shrink: 0;
-            position: relative;
-            z-index: 1;
-        }
-        .popularity-rank.top1 { background: linear-gradient(135deg, #FFD700, #FFA500); color: #fff; box-shadow: 0 2px 6px rgba(255, 165, 0, 0.4); }
-        .popularity-rank.top2 { background: linear-gradient(135deg, #C0C0C0, #A0A0A0); color: #fff; box-shadow: 0 2px 6px rgba(160, 160, 160, 0.4); }
-        .popularity-rank.top3 { background: linear-gradient(135deg, #CD7F32, #B87333); color: #fff; box-shadow: 0 2px 6px rgba(184, 115, 51, 0.4); }
-        .popularity-info { flex: 1; position: relative; z-index: 1; }
-        .popularity-name { font-weight: 700; color: #333; font-size: 0.95rem; }
-        .popularity-window { font-size: 0.8rem; color: #999; margin-top: 2px; white-space: normal; }
-        .popularity-votes {
-            color: #FF6B35;
+            font-size: 12.5px;
             font-weight: 700;
-            font-size: 0.95rem;
-            margin-left: 12px;
-            flex-shrink: 0;
-            position: relative;
-            z-index: 1;
+            font-variant-numeric: tabular-nums;
+            background: #F3EDE6;
+            color: #8A8078;
         }
-        .popularity-empty {
-            text-align: center;
-            padding: 40px 20px;
-            color: #bbb;
-        }
-        .popularity-empty .emoji { font-size: 2.5rem; margin-bottom: 10px; }
-        .popularity-empty .tip { font-size: 0.85rem; color: #ccc; margin-top: 6px; }
+        /* 前三名：只换底色和文字色，不用金银铜渐变 */
+        .rank-no.n1 { background: var(--primary-soft); color: var(--primary-strong); }
+        .rank-no.n2 { background: #F1F1F3; color: #5B6472; }
+        .rank-no.n3 { background: #FBF0E4; color: #95611F; }
 
-        /* ===== 页面底部：简洁版图表 ===== */
-        .mini-charts {
-            background: #fff;
-            border-radius: 14px;
-            padding: 20px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-        }
-        .mini-chart-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-        }
-        .mini-chart-box {
-            height: 200px;
-            background: #FAFAFA;
-            border-radius: 10px;
-            padding: 8px;
-        }
+        .rank-thumb { width: 44px; height: 44px; font-size: 16px; }
 
-        .footer-links {
-            text-align: center;
-            padding: 20px;
-        }
-        .survey-link {
-            display: inline-block;
-            padding: 10px 24px;
-            background: #fff;
-            border: 2px solid #FFB347;
-            border-radius: 24px;
-            color: #FF6B35;
-            text-decoration: none;
+        .rank-main { flex: 1 1 auto; min-width: 0; }
+        .rank-name {
+            /* 行内是 span，必须显式设成 block 才会换行 */
+            display: block;
+            font-size: 14.5px;
             font-weight: 600;
-            font-size: 0.9rem;
-            transition: all 0.15s;
+            color: var(--fg);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .survey-link:hover { background: #FFF3EC; }
+        .rank-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 2px;
+            font-size: 12.5px;
+            color: var(--fg-subtle);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .rank-meta .i-star { width: 11px; height: 11px; }
+        .rank-meta b {
+            color: var(--fg-muted);
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
 
-        @media (max-width: 600px) {
-            .hero-header h1 { font-size: 1.6rem; }
-            .mini-chart-grid { grid-template-columns: 1fr; }
+        .rank-votes {
+            flex: 0 0 auto;
+            font-size: 12.5px;
+            color: var(--fg-subtle);
+            white-space: nowrap;
+        }
+        .rank-votes b {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--primary-strong);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ================= 模块 3：底部问卷 CTA ================= */
+        .cta-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 20px;
+            background: var(--primary-soft);
+            border-radius: var(--radius-card);
+        }
+        .cta-banner p {
+            font-size: 13.5px;
+            color: #8A4B22;
+        }
+        .cta-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            padding: 9px 18px;
+            border-radius: 999px;
+            background: var(--primary-strong);
+            color: #fff;
+            font-size: 13.5px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background .18s, transform .18s;
+        }
+        .cta-link:hover { background: var(--primary-hover); transform: translateY(-1px); }
+        .cta-link svg { width: 14px; height: 14px; }
+
+        /* ================= 响应式 ================= */
+        @media (max-width: 640px) {
+            .hero {
+                flex-direction: column;
+                align-items: stretch;
+                min-height: 0;
+                padding: 24px 20px;
+            }
+            .hero-content { max-width: none; }
+            .hero-content h1 { font-size: 24px; }
+            .hero-card {
+                position: static;
+                transform: none;
+                width: 100%;
+                /* flex 子项默认 min-width:auto 会取内容最小宽度，
+                   卡片里有 white-space:nowrap 的长文字，
+                   不设 0 的话卡片撑不回去，会把整页顶出横向滚动条 */
+                min-width: 0;
+                margin-top: 20px;
+                box-shadow: none;
+            }
+            .rank-votes { display: none; }
+            .cta-banner {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .cta-link { justify-content: center; }
         }
     </style>
 </head>
 <body>
-    <!-- 顶部英雄区 -->
-    <header class="hero-header">
-        <h1>🍱 今天吃什么？</h1>
-        <p>让同学的真实评价帮你做决定 📊</p>
-    </header>
 
-    <!-- 模块1：随机推荐 -->
-    <section class="section">
-        <h2 class="section-title">🎲 今天不知道吃什么？</h2>
-        <div class="recommend-card" id="recommend-card">
-            <div class="recommend-emoji">🍽️</div>
-            <div style="color:#999;">正在挑选...</div>
-        </div>
-        <div style="text-align:center;">
-            <button class="btn-reroll" id="btn-reroll">🎲 换一个</button>
-        </div>
-    </section>
+    {% include '_topbar.html' %}
 
-    <!-- 🏆 模块2：餐品人气榜 -->
-    <section class="section">
-        <h2 class="section-title">🏆 餐品人气榜（同学投票 TOP 10）</h2>
-        <div class="popularity-card" id="popularity-card">
-            <div class="popularity-chart" id="popularity-chart"></div>
-            <div class="popularity-list" id="popularity-list">
-                <!-- JS 动态生成列表（作为图表的数据备份） -->
-            </div>
-        </div>
-    </section>
+    <div class="app-body">
 
-    <!-- 模块2.5：窗口口碑 -->
-    <section class="section">
-        <h2 class="section-title">🔥 窗口口碑（怕踩雷？点它看详情）</h2>
-        <div class="window-search">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="window-search-input" placeholder="输入窗口名称搜索，如：麻辣香锅、兰州拉面…">
-            <button class="clear-btn" id="window-search-clear" title="清除">✕</button>
-        </div>
-        <div class="window-grid" id="window-grid">
-            <!-- JS 动态生成 -->
-        </div>
-    </section>
+        {% include '_sidebar.html' %}
 
-    <!-- 模块3：条件筛选 -->
-    <section class="section">
-        <h2 class="section-title">🔍 找到适合我的</h2>
-        <div class="search-panel">
-            <div class="filter-group">
-                <div class="filter-group-label">💰 预算</div>
-                <div class="chip-row" id="price-chips">
-                    <div class="chip" data-min="" data-max="">不限</div>
-                    <div class="chip" data-min="5" data-max="10">¥5–10</div>
-                    <div class="chip" data-min="10" data-max="15">¥10–15</div>
-                    <div class="chip" data-min="15" data-max="25">¥15–25</div>
+        <main class="app-main">
+
+            <!-- ===== 模块 1：Hero + 随机推荐（一个餐食） ===== -->
+            <section class="hero">
+                <div class="hero-media" aria-hidden="true"></div>
+
+                <div class="hero-content">
+                    <button class="hero-cta" id="btn-reroll" type="button">
+                        随机推荐
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5 12h13M12.5 6.5 19 12l-6.5 5.5"/>
+                        </svg>
+                    </button>
                 </div>
-            </div>
-            <div class="filter-group">
-                <div class="filter-group-label">🍲 菜系</div>
-                <div class="chip-row" id="cuisine-chips">
-                    <!-- JS 动态生成 -->
+
+                <div class="hero-card" id="recommend-card">
+                    <div class="loading-line">正在挑选…</div>
                 </div>
-            </div>
-            <div class="filter-group">
-                <div class="filter-group-label">⭐ 偏好</div>
-                <div class="chip-row" id="pref-chips">
-                    <div class="chip active" data-pref="">综合推荐</div>
-                    <div class="chip" data-pref="高评分">高评分</div>
-                    <div class="chip" data-pref="高性价比">高性价比</div>
-                    <div class="chip" data-pref="分量足">分量足</div>
-                    <div class="chip" data-pref="出餐快">出餐快</div>
+            </section>
+
+            <!-- ===== 模块 2：人气榜（排行榜） ===== -->
+            <section class="block">
+                <div class="block-head">
+                    <h2 class="block-title">人气榜</h2>
+                    <span class="block-sub">按同学投票数排名</span>
                 </div>
-            </div>
-            <button class="btn-search" id="btn-search">🔍 开始找吃的</button>
+                <div class="rank-list" id="rank-list">
+                    <div class="loading-line">正在加载人气榜…</div>
+                </div>
+            </section>
 
-            <div class="result-list" id="result-list">
-                <div class="empty-state">👆 设置好条件点按钮，或直接看上面的推荐</div>
-            </div>
-        </div>
-    </section>
+            <!-- ===== 模块 3：问卷 CTA ===== -->
+            <section class="cta-banner">
+                <p>你的每一条评价，都是同学们的指南</p>
+                <a class="cta-link" href="/survey">
+                    立即评价
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M5 12h13M12.5 6.5 19 12l-6.5 5.5"/>
+                    </svg>
+                </a>
+            </section>
 
-    <!-- 底部：简洁图表概览 -->
-    <section class="section">
-        <h2 class="section-title">📊 整体口碑速览</h2>
-        <div class="mini-charts">
-            <div class="mini-chart-grid">
-                <div class="mini-chart-box" id="mini-score-dist"></div>
-                <div class="mini-chart-box" id="mini-cuisine-score"></div>
-            </div>
-        </div>
-    </section>
-
-    <!-- 问卷入口 -->
-    <div class="footer-links">
-        <a href="/survey" class="survey-link">✍️ 我也想评价一下 →</a>
+        </main>
     </div>
 
-    <!-- ============= 窗口详情弹窗 ============= -->
-    <div class="modal-overlay" id="window-modal">
-        <div class="modal-box">
-            <button class="modal-close" id="modal-close">✕</button>
-            <div class="modal-window-header" id="modal-header">
-                <!-- 动态填充 -->
-            </div>
-            <div id="modal-body">
-                <!-- 动态填充 -->
-            </div>
-        </div>
-    </div>
-
+    <script src="/static/js/shell.js"></script>
     <script src="/static/js/main.js"></script>
 </body>
 </html>

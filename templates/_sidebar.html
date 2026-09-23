@@ -1,0 +1,39 @@
+{# ---------- 学生端公共侧边栏 ----------
+   参数：
+     nav_active  当前高亮项：'home' | 'windows' | 'survey'
+#}
+<aside class="app-sidebar">
+    <nav class="nav">
+        <a class="nav-item {% if nav_active == 'home' %}active{% endif %}"
+           href="/"{% if nav_active == 'home' %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3.5 10.5 12 3.5l8.5 7"/>
+                <path d="M5.5 9.6V20h13V9.6"/>
+            </svg>
+            首页
+        </a>
+
+        <a class="nav-item {% if nav_active == 'windows' %}active{% endif %}"
+           href="/windows"{% if nav_active == 'windows' %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3.5 9.5 6 4h12l2.5 5.5"/>
+                <path d="M5 9.5V20h14V9.5"/>
+                <path d="M9.5 20v-5.5h5V20"/>
+            </svg>
+            窗口口碑
+        </a>
+
+        <a class="nav-item {% if nav_active == 'survey' %}active{% endif %}"
+           href="/survey"{% if nav_active == 'survey' %} aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="5" y="4.5" width="14" height="16" rx="2"/>
+                <path d="M9 3h6v3H9z"/>
+                <path d="M9 11h6M9 14.5h6M9 18h3.5"/>
+            </svg>
+            调查问卷
+        </a>
+    </nav>
+</aside>

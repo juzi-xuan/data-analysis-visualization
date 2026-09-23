@@ -40,12 +40,15 @@ from utils.data_loader import (
     compute_trend,
     compute_window_avg,
     compute_window_detail,
+    compute_window_list,
     compute_window_rank,
     ensure_survey_db,
     enrich_windows_with_dishes,
     load_custom_dishes,
     load_data,
+    load_dish_images,
     load_survey_data,
+    save_dish_image,
     save_survey_responses,
 )
 from utils.text_analyzer import compute_word_freq
@@ -81,26 +84,35 @@ def get_df():
 
 @app.route("/")
 def index():
-    """渲染主页面"""
-    global _data_source_label
-
-    df = get_df()
-    cuisines = ["全部"] + sorted(df["菜系类型"].unique().tolist())
-
+    """渲染学生端首页"""
     return render_template(
         "index.html",
-        data_source=_data_source_label,
-        data_date=compute_data_date(df),
-        total_count=len(df),
-        cuisines=cuisines,
-        current_source=_source,
+        nav_active="home",
+        search_placeholder="搜索食堂、窗口、菜品…",
+        search_label="搜索菜品或窗口",
     )
 
 
 @app.route("/survey")
 def survey():
     """渲染问卷页面"""
-    return render_template("survey.html")
+    return render_template(
+        "survey.html",
+        nav_active="survey",
+        search_placeholder="搜索窗口、食堂、菜品…",
+        search_label="搜索窗口",
+    )
+
+
+@app.route("/windows")
+def windows_page():
+    """渲染窗口口碑页面（学生端）"""
+    return render_template(
+        "windows.html",
+        nav_active="windows",
+        search_placeholder="搜索窗口、食堂、菜系…",
+        search_label="搜索窗口",
+    )
 
 
 @app.route("/analysis")
@@ -242,6 +254,18 @@ def api_popularity():
     })
 
 
+@app.route("/api/windows")
+def api_windows():
+    """🏬 窗口口碑列表（每个窗口的平均分 + 评价数 + 食堂/菜系/图片）"""
+    df = get_df()
+    items = compute_window_list(df)
+    return jsonify({
+        "ok": True,
+        "items": items,
+        "canteens": ["全部"] + sorted({it["canteen"] for it in items}),
+    })
+
+
 @app.route("/api/charts")
 def api_charts():
     """所有图表数据（一次请求返回全部 6 张图）"""
@@ -362,6 +386,12 @@ def api_survey_windows():
     # enrich_windows_with_dishes 会读取 CSV 并给匹配的窗口加上 dishes 数组
     enriched = enrich_windows_with_dishes(list(WINDOWS))
 
+    # 给每道菜补上展示图（没有图就是空字符串，前端会回退成窗口照片）
+    dish_images = load_dish_images()
+    for w in enriched:
+        for d in w.get("dishes", []):
+            d["image"] = dish_images.get((w["name"], d["name"]), "")
+
     # 把自定义餐品也加入（作为"其他"食堂的窗口）
     custom_dishes = load_custom_dishes()
     custom_windows = []
@@ -374,6 +404,8 @@ def api_survey_windows():
             "description": cd["description"],
             "address": cd["address"],
             "dish_name": cd["dish_name"],
+            # 自定义餐品本身就是一道菜，它的展示图就是上传的那张
+            "dish_image": cd["image_path"] or "",
             "is_custom": True,
         })
 
@@ -394,6 +426,58 @@ def api_survey_windows():
 # 自定义餐品图片保存目录
 _CUSTOM_IMAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "images", "custom")
 ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+
+# 菜品展示图保存目录
+_DISH_IMAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "images", "dishes")
+
+
+@app.route("/api/survey/dish_image", methods=["POST"])
+def api_survey_dish_image():
+    """
+    上传某道菜的展示图
+    multipart/form-data：window_name / dish_name / image
+
+    一道菜只允许一张图：已经有图就直接拒绝并返回现有图，
+    避免多个同学重复上传把同一道菜的展示图改来改去。
+    """
+    os.makedirs(_DISH_IMAGE_DIR, exist_ok=True)
+
+    window_name = (request.form.get("window_name") or "").strip()
+    dish_name = (request.form.get("dish_name") or "").strip()
+    if not window_name or not dish_name:
+        return jsonify({"ok": False, "msg": "缺少窗口名或菜品名"}), 400
+
+    image_file = request.files.get("image")
+    if not image_file or not image_file.filename:
+        return jsonify({"ok": False, "msg": "没有收到图片"}), 400
+
+    ext = os.path.splitext(image_file.filename)[1].lower()
+    if ext not in ALLOWED_IMAGE_EXT:
+        return jsonify({"ok": False, "msg": "只支持 jpg / png / gif / webp 图片"}), 400
+
+    filename = f"dish_{uuid.uuid4().hex[:12]}{ext}"
+    save_path = os.path.join(_DISH_IMAGE_DIR, filename)
+    image_file.save(save_path)
+
+    submitter_id = session.get("submitter_id")
+    if not submitter_id:
+        submitter_id = uuid.uuid4().hex[:12]
+        session["submitter_id"] = submitter_id
+
+    image_path = f"/static/images/dishes/{filename}"
+    if not save_dish_image(window_name, dish_name, image_path, submitter_id):
+        # 已经有人传过了 → 把刚写入的文件删掉，不留孤儿文件
+        try:
+            os.remove(save_path)
+        except OSError:
+            pass
+        return jsonify({
+            "ok": False,
+            "msg": "这道菜已经有同学上传过展示图啦",
+            "image": load_dish_images().get((window_name, dish_name), ""),
+        }), 409
+
+    return jsonify({"ok": True, "msg": "展示图已保存", "image": image_path})
 
 
 @app.route("/api/survey/custom_dish", methods=["POST"])

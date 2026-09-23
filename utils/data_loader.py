@@ -16,7 +16,7 @@ import pandas as pd
 from datetime import datetime
 
 from utils.mock_data import generate_canteen_data
-from config.windows import WINDOW_CUISINE_MAP, WINDOWS
+from config.windows import WINDOW_CUISINE_MAP, WINDOW_INFO_MAP, WINDOWS
 
 
 # 项目根目录
@@ -64,8 +64,14 @@ def load_dishes_from_csv(csv_path: str) -> dict:
 
         dishes_by_window = {}
         for _, row in df.iterrows():
+            # 空单元格 pandas 会读成 NaN，而 str(NaN) 会变成字符串 "nan"，
+            # 直接落库就会出现名叫 "nan" 的菜品。必须先判掉空值。
+            if pd.isna(row["窗口名"]) or pd.isna(row["餐品"]):
+                continue
             window_short = str(row["窗口名"]).strip()
             dish_name = str(row["餐品"]).strip()
+            if not window_short or not dish_name:
+                continue
             price_raw = str(row["价格"]).strip()
 
             # 用正则提取价格里的第一个数字（兼容 "3.5元"/"3元"/"¥3.0"/"￥3" 等）
@@ -194,8 +200,81 @@ def ensure_survey_db():
         )
     """)
 
+    # ========== 菜品展示图（一道菜一张，先到先得） ==========
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS dish_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            window_name TEXT NOT NULL,
+            dish_name TEXT NOT NULL,
+            image_path TEXT NOT NULL,
+            submitter_id TEXT,
+            upload_date TEXT NOT NULL,
+            UNIQUE(window_name, dish_name)
+        )
+    """)
+
     conn.commit()
     conn.close()
+
+
+# ============================================================
+# 菜品展示图
+# 一道菜单独一张图（默认展示的是整个窗口的照片）。
+# 表上加了 UNIQUE(window_name, dish_name)，从数据库层面保证
+# 「一道菜只允许一张图」，避免多个同学重复上传。
+# ============================================================
+
+def load_dish_images() -> dict:
+    """
+    读取菜品展示图映射
+
+    返回 {(窗口名, 菜品名): 图片路径}
+    """
+    ensure_survey_db()
+    conn = sqlite3.connect(_DB_PATH)
+    try:
+        rows = conn.execute(
+            "SELECT window_name, dish_name, image_path FROM dish_images"
+        ).fetchall()
+    finally:
+        conn.close()
+    return {(w, d): p for w, d, p in rows}
+
+
+def save_dish_image(window_name: str, dish_name: str, image_path: str,
+                    submitter_id: str = "") -> bool:
+    """
+    保存菜品展示图
+
+    同一道菜已经有图时返回 False（既不覆盖也不新增）——
+    这样第一个上传的同学的图会成为这道菜的固定展示图。
+    """
+    ensure_survey_db()
+    conn = sqlite3.connect(_DB_PATH)
+    try:
+        exists = conn.execute(
+            "SELECT 1 FROM dish_images WHERE window_name = ? AND dish_name = ?",
+            (window_name, dish_name),
+        ).fetchone()
+        if exists:
+            return False
+
+        conn.execute(
+            "INSERT INTO dish_images "
+            "(window_name, dish_name, image_path, submitter_id, upload_date) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                window_name,
+                dish_name,
+                image_path,
+                submitter_id,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            ),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 
 def save_survey_responses(responses: list, submitter_id: str = None) -> int:
@@ -314,7 +393,11 @@ def load_survey_data() -> pd.DataFrame:
 
             if dish_evals:
                 for dish in dish_evals:
-                    dish_name = dish.get("name", "")
+                    # "nan" / "none" 是历史数据里序列化空值留下的脏字符串，
+                    # 语义上等于"没填菜名"，统一按空处理，走下面的「窗口综合」兜底
+                    dish_name = str(dish.get("name") or "").strip()
+                    if dish_name.lower() in ("nan", "none", "null"):
+                        dish_name = ""
                     try:
                         price = float(dish.get("price", 0))
                     except (ValueError, TypeError):
@@ -366,7 +449,11 @@ def load_survey_data() -> pd.DataFrame:
             "窗口名": store_name,
             "菜品名": dish_name,
             "菜系类型": cuisine or "其他",
-            "评分": "",  # 自定义餐品本身没有评分（评分通过 survey_responses 累积）
+            # 自定义餐品本身没有评分（评分通过 survey_responses 累积）。
+            # 这里必须用 NaN 而不是 ""：一旦混入字符串，
+            # 整列「评分」的 dtype 会退化成 object，
+            # 后面所有 groupby(...).mean() / astype(float) 都会直接报错。
+            "评分": float("nan"),
             "价格": "",
             "评价文字": " | ".join(text_parts) if text_parts else "",
             "日期": submit_date[:10] if submit_date else "",
@@ -1097,7 +1184,11 @@ def compute_recommend_random(df: pd.DataFrame) -> dict:
     recommend_pct = int((window_rows["评分"] >= 4.0).mean() * 100) if len(window_rows) > 0 else 70
 
     price_val = row.get("价格", "")
-    price_str = f"¥{price_val}" if price_val and price_val != "" else ""
+    # 价格是数值时用 :g 去掉多余小数位（6.0 → 6），否则会显示成「¥6.0」
+    if isinstance(price_val, (int, float)) and not pd.isna(price_val) and price_val > 0:
+        price_str = f"¥{price_val:g}"
+    else:
+        price_str = ""
 
     return {
         "ok": True,
@@ -1109,6 +1200,8 @@ def compute_recommend_random(df: pd.DataFrame) -> dict:
         "price": price_str,
         "reason": reason,
         "recommend_pct": recommend_pct,
+        # 菜品自己的展示图（有同学上传过才有）。为空时前端回退到窗口照片
+        "dish_image": load_dish_images().get((window_name, row.get("菜品名", "")), ""),
         "image": window_image,
     }
 
@@ -1319,6 +1412,8 @@ def compute_popularity_ranking(df: pd.DataFrame, top_n: int = 15) -> list:
     grouped = grouped.sort_values("votes", ascending=False).head(top_n)
 
     result = []
+    # 一次读全，避免在循环里反复查库
+    dish_images = load_dish_images()
     for rank, (_, row) in enumerate(grouped.iterrows(), start=1):
         result.append({
             "rank": rank,
@@ -1327,6 +1422,46 @@ def compute_popularity_ranking(df: pd.DataFrame, top_n: int = 15) -> list:
             "cuisine": row["cuisine"],
             "votes": int(row["votes"]),
             "avg_score": round(row["avg_score"], 2),
+            # 菜品展示图优先于窗口照片
+            "dish_image": dish_images.get((row["窗口名"], row["菜品名"]), ""),
+            "image": WINDOW_INFO_MAP.get(row["窗口名"], {}).get("image", ""),
         })
 
+    return result
+
+
+def compute_window_list(df: pd.DataFrame) -> list:
+    """
+    窗口口碑页用：每个窗口一行
+
+    返回 [{name, canteen, cuisine, image, score, count}, ...]，按平均分降序
+    食堂筛选标签由前端从 canteen 字段去重得到，不用后端再算一遍
+    """
+    if df.empty or "评分" not in df.columns:
+        return []
+
+    # 只统计有真实评分的行：
+    # 自定义餐品本身没有评分（评分为 NaN），不能算进窗口均分
+    scored = df[df["评分"].notna()]
+    if scored.empty:
+        return []
+
+    grouped = scored.groupby("窗口名")["评分"].agg(["mean", "size"]).reset_index()
+    grouped.columns = ["name", "score", "count"]
+
+    result = []
+    for _, row in grouped.iterrows():
+        name = row["name"]
+        info = WINDOW_INFO_MAP.get(name, {})
+        result.append({
+            "name": name,
+            "canteen": info.get("canteen", "其他"),
+            "cuisine": info.get("cuisine", ""),
+            "image": info.get("image", ""),
+            "score": round(float(row["score"]), 2),
+            "count": int(row["count"]),
+        })
+
+    # 分数高的在前；同分则评价多的在前
+    result.sort(key=lambda x: (-x["score"], -x["count"]))
     return result
